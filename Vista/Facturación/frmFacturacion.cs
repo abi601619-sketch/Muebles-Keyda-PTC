@@ -1,0 +1,958 @@
+using Guna.UI2.WinForms;
+using Modelo.Entidades;
+using System;
+using System.Data;
+using System.Data.SqlClient;
+using System.Diagnostics;
+using System.Drawing;
+using System.Windows.Forms;
+using Vista.Responsive;
+using Color = System.Drawing.Color;
+
+namespace Vista.Facturación
+{
+    public partial class frmFacturacion : Form
+    {
+        public frmFacturacion()
+        {
+
+            InitializeComponent();
+            ResponsiveHelper.Apply(this);
+
+            ConfigurarPaneles();
+            ConfigurarBotonesFactura();
+            ConfigurarBarraBusqueda();
+        }
+
+        private Guna2Elipse elipseDatosVenta;
+        private Guna2Elipse elipseDatosCliente;
+        private Guna2Elipse elipseDatosFactura;
+        private Guna2Elipse elipseDetalleProductos;
+        private Guna2Elipse elipseResumenPago;
+        private Guna2Elipse elipseObservaciones;
+
+
+        private const string TextoBusqueda = "Buscar por número de factura...";
+        private readonly Color ColorPlaceholder = Color.LightGray;
+        private readonly Color ColorCafe = Color.FromArgb(121, 75, 45);
+
+        private void ConfigurarPaneles()
+        {
+            elipseDatosVenta = new Guna2Elipse
+            {
+                TargetControl = panel3,
+                BorderRadius = 10
+            };
+
+            elipseDatosCliente = new Guna2Elipse
+            {
+                TargetControl = pnlDatosVenta,
+                BorderRadius = 10
+            };
+
+            elipseDatosFactura = new Guna2Elipse
+            {
+                TargetControl = pnlDatosGeneralesFactura,
+                BorderRadius = 10
+            };
+
+            elipseDetalleProductos = new Guna2Elipse
+            {
+                TargetControl = pnlDatalledeProductos,
+                BorderRadius = 10
+            };
+
+            elipseResumenPago = new Guna2Elipse
+            {
+                TargetControl = pnlResumenDePagoFactura,
+                BorderRadius = 10
+            };
+
+            elipseObservaciones = new Guna2Elipse
+            {
+                TargetControl = panel4,
+                BorderRadius = 10
+            };
+        }
+
+
+
+        private void ConfigurarBotonesFactura()
+        {
+            ConfigurarBotonFactura(btnGuardarFactura, Color.FromArgb(121, 75, 45));
+
+            ConfigurarBotonFactura(btnGenerarPDF, Color.FromArgb(112, 153, 82));
+
+            ConfigurarBotonFactura(btnLimpiarFactura, Color.FromArgb(174, 91, 75));
+
+            ConfigurarBotonFactura(btnLimpiarFiltros, Color.FromArgb(121, 75, 45));
+        }
+
+        private void ConfigurarBotonFactura(Guna.UI2.WinForms.Guna2Button boton, Color color)
+        {
+            boton.FillColor = color;
+            boton.ForeColor = Color.White;
+
+            boton.BorderColor = Color.FromArgb(121, 75, 45);
+            boton.BorderThickness = 1;
+            boton.BorderRadius = 8;
+
+            boton.HoverState.FillColor = Color.FromArgb(
+                Math.Min(color.R + 20, 255),
+                Math.Min(color.G + 20, 255),
+                Math.Min(color.B + 20, 255)
+            );
+
+            boton.HoverState.ForeColor = Color.White;
+            boton.HoverState.BorderColor = Color.FromArgb(121, 75, 45);
+
+            boton.PressedColor = Color.FromArgb(
+                Math.Max(color.R - 25, 0),
+                Math.Max(color.G - 25, 0),
+                Math.Max(color.B - 25, 0)
+            );
+
+            boton.Cursor = Cursors.Hand;
+        }
+
+        private void ConfigurarBarraBusqueda()
+        {
+            ConfigurarBusqueda(txtBuscar);
+
+        }
+        private void ConfigurarBusqueda(Guna2TextBox txtBuscar)
+        {
+            txtBuscar.Text = TextoBusqueda;
+            txtBuscar.ForeColor = ColorPlaceholder;
+
+            txtBuscar.BorderRadius = 10;
+            txtBuscar.BorderThickness = 1;
+            txtBuscar.BorderColor = Color.LightGray;
+
+            txtBuscar.FocusedState.BorderColor = ColorCafe;
+
+            txtBuscar.Enter += (s, e) =>
+            {
+                if (txtBuscar.Text == TextoBusqueda)
+                {
+                    txtBuscar.Text = "";
+                    txtBuscar.ForeColor = Color.Black;
+                }
+
+                txtBuscar.BorderColor = ColorCafe;
+                txtBuscar.BorderThickness = 2;
+            };
+
+            txtBuscar.Leave += (s, e) =>
+            {
+                if (string.IsNullOrWhiteSpace(txtBuscar.Text))
+                {
+                    txtBuscar.Text = TextoBusqueda;
+                    txtBuscar.ForeColor = ColorPlaceholder;
+                }
+
+                txtBuscar.BorderColor = Color.LightGray;
+                txtBuscar.BorderThickness = 1;
+            };
+        }
+
+        //.---------------------------------------------------------------------------------------------------------------------------------------------------
+        // VARIABLES PARA LA PAGINACIÓN
+        private DataTable dtFacturas;
+        private int paginaActual = 1;
+        private int registrosPorPagina = 20;
+        private int totalPaginas = 0;
+
+        private void ConfigurarTooltips()
+        {
+            // Crear ToolTip
+            ToolTip toolTip1 = new ToolTip();
+
+            // Propiedades del ToolTip
+            toolTip1.AutoPopDelay = 5000;
+            toolTip1.InitialDelay = 500;
+            toolTip1.ReshowDelay = 200;
+            toolTip1.ShowAlways = true;
+
+            // Navegación de facturación
+            toolTip1.SetToolTip(btnNuevaFactura, "Muestra el formulario para crear una nueva factura.");
+
+            toolTip1.SetToolTip(btnRegistrosfacturas, "Muestra las facturas registradas.");
+
+            // Datos de la venta
+            toolTip1.SetToolTip(txtnVenta, "Ingrese el número de la venta que desea facturar.");
+
+            toolTip1.SetToolTip(btnBuscarVenta, "Busca la venta ingresada para utilizar sus datos en la factura.");
+
+            // Datos del cliente
+            toolTip1.SetToolTip(txtMostrarCliente, "Muestra el nombre del cliente asociado a la venta.");
+
+            toolTip1.SetToolTip(txtDui, "Muestra el documento de identidad del cliente.");
+
+            toolTip1.SetToolTip(txtTelefono, "Muestra el número de teléfono del cliente.");
+
+            toolTip1.SetToolTip(txtCorreo, "Muestra el correo electrónico del cliente.");
+
+            // Datos de la factura
+            toolTip1.SetToolTip(txtNumeroFactura, "Muestra el número de la factura. Se asigna al guardar la factura.");
+
+            toolTip1.SetToolTip(dtFechaDatosGeneralesFactura, "Muestra la fecha de emisión de la factura.");
+
+            toolTip1.SetToolTip(dtpFechaVencimiento, "Seleccione la fecha de vencimiento de la factura.");
+
+            // Detalle de la venta
+            toolTip1.SetToolTip(dgvDetalleVenta, "Muestra los productos incluidos en la venta seleccionada.");
+
+            toolTip1.SetToolTip(lblTotalDeProductos, "Muestra la cantidad total de productos incluidos en la venta.");
+
+            // Resumen de la factura
+            toolTip1.SetToolTip(txtSubTotal, "Muestra el subtotal de la venta.");
+
+            toolTip1.SetToolTip(txtDescuento, "Ingrese el descuento que desea aplicar a la factura.");
+
+            toolTip1.SetToolTip(txtIVA, "Muestra el IVA correspondiente después de aplicar el descuento.");
+
+            toolTip1.SetToolTip(txtTotal, "Muestra el total a pagar de la factura.");
+
+            toolTip1.SetToolTip(lblTotalAPagar, "Muestra el total final que debe pagar el cliente.");
+
+            // Observaciones
+            toolTip1.SetToolTip(txtObservaciones, "Ingrese observaciones adicionales relacionadas con la factura.");
+
+            // Botones de factura
+            toolTip1.SetToolTip(btnGuardarFactura, "Guarda la factura con los datos ingresados.");
+
+            toolTip1.SetToolTip(btnGenerarPDF, "Genera la factura en formato PDF.");
+
+            toolTip1.SetToolTip(btnLimpiarFactura, "Limpia los datos de la factura actual.");
+
+            // Búsqueda de facturas
+            toolTip1.SetToolTip(txtBuscar, "Busca una factura por su número.");
+
+            toolTip1.SetToolTip(btnLimpiarFiltros, "Limpia el buscador y muestra nuevamente todas las facturas.");
+
+            // Registro de facturas
+            toolTip1.SetToolTip(dgvFacturasRegistradas, "Muestra las facturas registradas. Haz doble clic en una factura para editarla.");
+        }
+        //------------------------------------------------------------------------------------------------------
+        //---------------------- CONFIGURAR TABLAS DE FACTURACIÓN ----------------------------------------------//
+        private void ConfigurarTablasFacturacion()
+        {
+            // TABLA DE FACTURAS
+
+            dgvFacturasRegistradas.AutoGenerateColumns = true;
+            dgvFacturasRegistradas.EnableHeadersVisualStyles = false;
+            dgvFacturasRegistradas.AllowUserToAddRows = false;
+            dgvFacturasRegistradas.AllowUserToDeleteRows = false;
+            dgvFacturasRegistradas.AllowUserToResizeRows = false;
+            dgvFacturasRegistradas.AllowUserToResizeColumns = false;
+            dgvFacturasRegistradas.ReadOnly = true;
+            dgvFacturasRegistradas.MultiSelect = false;
+            dgvFacturasRegistradas.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+            dgvFacturasRegistradas.RowHeadersVisible = false;
+            dgvFacturasRegistradas.BorderStyle = BorderStyle.None;
+            dgvFacturasRegistradas.BackgroundColor = Color.White;
+            dgvFacturasRegistradas.CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal;
+            dgvFacturasRegistradas.GridColor = Color.FromArgb(225, 225, 225);
+
+            // Alto del encabezado
+            dgvFacturasRegistradas.ColumnHeadersHeight = 40;
+
+            // Alto de las filas
+            dgvFacturasRegistradas.RowTemplate.Height = 36;
+            dgvFacturasRegistradas.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.None;
+
+            // Ajustar columnas
+            dgvFacturasRegistradas.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+
+            // Encabezado
+            dgvFacturasRegistradas.ColumnHeadersDefaultCellStyle = new DataGridViewCellStyle
+            {
+                BackColor = Color.FromArgb(121, 75, 45),
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 10, FontStyle.Bold),
+                Alignment = DataGridViewContentAlignment.MiddleCenter,
+                SelectionBackColor = Color.FromArgb(121, 75, 45),
+                SelectionForeColor = Color.White,
+                Padding = new Padding(5)
+            };
+
+            // Filas
+            dgvFacturasRegistradas.DefaultCellStyle = new DataGridViewCellStyle
+            {
+                BackColor = Color.White,
+                ForeColor = Color.FromArgb(55, 55, 55),
+                Font = new Font("Segoe UI", 10),
+                Alignment = DataGridViewContentAlignment.MiddleCenter,
+                SelectionBackColor = Color.FromArgb(238, 215, 185),
+                SelectionForeColor = Color.FromArgb(60, 45, 35),
+                Padding = new Padding(5)
+            };
+
+            // Filas alternadas
+            dgvFacturasRegistradas.AlternatingRowsDefaultCellStyle = new DataGridViewCellStyle
+            {
+                BackColor = Color.FromArgb(250, 246, 240),
+                ForeColor = Color.FromArgb(55, 55, 55),
+                Font = new Font("Segoe UI", 10),
+                SelectionBackColor = Color.FromArgb(238, 215, 185),
+                SelectionForeColor = Color.FromArgb(60, 45, 35)
+            };
+
+            // Fila seleccionada
+            dgvFacturasRegistradas.RowsDefaultCellStyle.SelectionBackColor = Color.FromArgb(238, 215, 185);
+            dgvFacturasRegistradas.RowsDefaultCellStyle.SelectionForeColor = Color.FromArgb(60, 45, 35);
+
+            // No permitir ordenar las columnas
+            foreach (DataGridViewColumn columna in dgvFacturasRegistradas.Columns)
+            {
+                columna.SortMode = DataGridViewColumnSortMode.NotSortable;
+            }
+
+
+            // TABLA DE DETALLE DE VENTA
+
+            dgvDetalleVenta.AutoGenerateColumns = true;
+            dgvDetalleVenta.EnableHeadersVisualStyles = false;
+            dgvDetalleVenta.AllowUserToAddRows = false;
+            dgvDetalleVenta.AllowUserToDeleteRows = false;
+            dgvDetalleVenta.AllowUserToResizeRows = false;
+            dgvDetalleVenta.AllowUserToResizeColumns = false;
+            dgvDetalleVenta.ReadOnly = true;
+            dgvDetalleVenta.MultiSelect = false;
+            dgvDetalleVenta.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
+            dgvDetalleVenta.RowHeadersVisible = false;
+            dgvDetalleVenta.BorderStyle = BorderStyle.None;
+            dgvDetalleVenta.BackgroundColor = Color.White;
+            dgvDetalleVenta.CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal;
+            dgvDetalleVenta.GridColor = Color.FromArgb(225, 225, 225);
+
+            // Alto del encabezado
+            dgvDetalleVenta.ColumnHeadersHeight = 40;
+
+            // Alto de las filas
+            dgvDetalleVenta.RowTemplate.Height = 36;
+            dgvDetalleVenta.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.None;
+
+            // Ajustar columnas
+            dgvDetalleVenta.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+
+            // Encabezado
+            dgvDetalleVenta.ColumnHeadersDefaultCellStyle = new DataGridViewCellStyle
+            {
+                BackColor = Color.FromArgb(121, 75, 45),
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI", 10, FontStyle.Bold),
+                Alignment = DataGridViewContentAlignment.MiddleCenter,
+                SelectionBackColor = Color.FromArgb(121, 75, 45),
+                SelectionForeColor = Color.White,
+                Padding = new Padding(5)
+            };
+
+            // Filas
+            dgvDetalleVenta.DefaultCellStyle = new DataGridViewCellStyle
+            {
+                BackColor = Color.White,
+                ForeColor = Color.FromArgb(55, 55, 55),
+                Font = new Font("Segoe UI", 10),
+                Alignment = DataGridViewContentAlignment.MiddleCenter,
+                SelectionBackColor = Color.FromArgb(238, 215, 185),
+                SelectionForeColor = Color.FromArgb(60, 45, 35),
+                Padding = new Padding(5)
+            };
+
+            // Filas alternadas
+            dgvDetalleVenta.AlternatingRowsDefaultCellStyle = new DataGridViewCellStyle
+            {
+                BackColor = Color.FromArgb(250, 246, 240),
+                ForeColor = Color.FromArgb(55, 55, 55),
+                Font = new Font("Segoe UI", 10),
+                SelectionBackColor = Color.FromArgb(238, 215, 185),
+                SelectionForeColor = Color.FromArgb(60, 45, 35)
+            };
+
+            // Fila seleccionada
+            dgvDetalleVenta.RowsDefaultCellStyle.SelectionBackColor = Color.FromArgb(238, 215, 185);
+            dgvDetalleVenta.RowsDefaultCellStyle.SelectionForeColor = Color.FromArgb(60, 45, 35);
+
+            // No permitir ordenar las columnas
+            foreach (DataGridViewColumn columna in dgvDetalleVenta.Columns)
+            {
+                columna.SortMode = DataGridViewColumnSortMode.NotSortable;
+            }
+        }
+        private void frmFacturacion_Load(object sender, EventArgs e)
+        {
+            MostrarRegistrosFacturas();
+
+            dgvDetalleVenta.DataSource = null;
+
+            // CONFIGURACION DE LAS TABLAS
+            ConfigurarTablasFacturacion();
+
+            //BLOQUEA LOS CONTROLES DE CORTAR COPIAR Y PEGAR
+            DesactivarCopiarPegar(this);
+
+            ConfigurarTooltips();
+
+            //Validamos que las fechas ingresadas esten acorde a la lógica del negocio
+            dtFechaDatosGeneralesFactura.Value = DateTime.Today;
+            dtFechaDatosGeneralesFactura.Enabled = false;
+            dtFechaDatosGeneralesFactura.MinDate = DateTime.Today;
+            dtFechaDatosGeneralesFactura.MaxDate = DateTime.Today;
+            dtpFechaVencimiento.MinDate = DateTime.Today;
+
+            //El numero de factura inicial estara pendiente, hasta que esta factura se guarde
+
+            txtNumeroFactura.Text = "Pendiente";
+
+            dgvFacturasRegistradas.Columns["IdFactura"].HeaderText = "N° de Factura";
+            dgvFacturasRegistradas.Columns["Fecha"].HeaderText = "Fecha de emisión";
+        }
+        private void MostrarRegistrosFacturas()
+        {
+            try
+            {
+                // Cargar todas las facturas
+                dtFacturas = DbFactura.CargarRegistrosFacturas();
+
+                // Iniciar desde la primera página
+                paginaActual = 1;
+
+                // Calcular cantidad de páginas
+                CalcularPaginasFacturas();
+
+                // Mostrar la primera página
+                MostrarPaginaFacturas();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error al cargar las facturas: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+        private void CalcularPaginasFacturas()
+        {
+            if (dtFacturas == null || dtFacturas.Rows.Count == 0)
+            {
+                totalPaginas = 1;
+                paginaActual = 1;
+                return;
+            }
+
+            totalPaginas = (int)Math.Ceiling((double)dtFacturas.Rows.Count / registrosPorPagina);
+
+            if (totalPaginas == 0)
+                totalPaginas = 1;
+
+            if (paginaActual > totalPaginas)
+                paginaActual = totalPaginas;
+        }
+
+        private void MostrarPaginaFacturas()
+        {
+            if (dtFacturas == null)
+                return;
+
+            DataTable dtPagina = dtFacturas.Clone();
+
+            int inicio = (paginaActual - 1) * registrosPorPagina;
+            int fin = Math.Min(inicio + registrosPorPagina, dtFacturas.Rows.Count);
+
+            for (int i = inicio; i < fin; i++)
+            {
+                dtPagina.ImportRow(dtFacturas.Rows[i]);
+            }
+
+            dgvFacturasRegistradas.DataSource = null;
+            dgvFacturasRegistradas.DataSource = dtPagina;
+
+            if (dgvFacturasRegistradas.Columns.Contains("IdFactura"))
+                dgvFacturasRegistradas.Columns["IdFactura"].HeaderText = "N° de Factura";
+
+            if (dgvFacturasRegistradas.Columns.Contains("Fecha"))
+                dgvFacturasRegistradas.Columns["Fecha"].HeaderText = "Fecha de emisión";
+
+            ConfigurarTablasFacturacion();
+
+            lblPagina.Text = $"Página {paginaActual} de {totalPaginas}";
+
+            btnAnterior.Enabled = paginaActual > 1;
+            btnSiguiente.Enabled = paginaActual < totalPaginas;
+        }
+        private void MostrarDetalleFactura(int idVenta)
+        {
+            try
+            {
+                DataTable detalle = DbFactura.CargarDetalleVentaParaFactura(idVenta);
+
+                dgvDetalleVenta.DataSource = null;
+                dgvDetalleVenta.DataSource = detalle;
+
+                if (dgvDetalleVenta.Columns.Contains("IdDetalleVenta"))
+                    dgvDetalleVenta.Columns["IdDetalleVenta"].HeaderText = "#";
+
+                if (dgvDetalleVenta.Columns.Contains("IdVenta"))
+                    dgvDetalleVenta.Columns["IdVenta"].Visible = false;
+
+                if (dgvDetalleVenta.Columns.Contains("ProductoVendido"))
+                    dgvDetalleVenta.Columns["ProductoVendido"].HeaderText = "Producto";
+
+                if (dgvDetalleVenta.Columns.Contains("Cantidad"))
+                    dgvDetalleVenta.Columns["Cantidad"].HeaderText = "Cantidad";
+
+                if (dgvDetalleVenta.Columns.Contains("PrecioUnitario"))
+                    dgvDetalleVenta.Columns["PrecioUnitario"].HeaderText = "Precio unitario";
+
+                if (dgvDetalleVenta.Columns.Contains("SubTotal"))
+                    dgvDetalleVenta.Columns["SubTotal"].HeaderText = "Subtotal";
+
+                ConfigurarTablasFacturacion();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    "No se pudo cargar el detalle de la venta.\n" + ex.Message,
+                    "Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error
+                );
+            }
+        }
+
+        private void btnNuevaFactura_Click(object sender, EventArgs e)
+        {
+            pnlNuevaFactura.Visible = true;
+            pnlBarraCambioRegistros.Visible = false;
+            pnlContenedorDeCotizacionNueva.Visible = true;
+            pnlRegistroCotizacion.Visible = false;
+        }
+
+        private void btnRegistrosfacturas_Click(object sender, EventArgs e)
+        {
+            pnlNuevaFactura.Visible = false;
+            pnlBarraCambioRegistros.Visible = true;
+            pnlContenedorDeCotizacionNueva.Visible = false;
+            pnlRegistroCotizacion.Visible = true;
+        }
+
+        private void DesactivarCopiarPegar(Control control)
+        {
+            foreach (Control elemento in control.Controls)
+            {
+                if (elemento is TextBox)
+                {
+                    ((TextBox)elemento).ShortcutsEnabled = false;
+                }
+
+                if (elemento.HasChildren)
+                {
+                    DesactivarCopiarPegar(elemento);
+                }
+            }
+        }
+        //Metodo para buscar venta para generar factura y usar los datos de esa venta
+        private void btnBuscarVenta_Click(object sender, EventArgs e)
+        {
+            if (!int.TryParse(txtnVenta.Text.Trim(), out int idVenta))
+            {
+                MessageBox.Show("Ingresa un número de venta válido.", "Venta", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+
+                return;
+            }
+
+            DataTable dt = DbFactura.BuscarVentaParaFactura(idVenta);
+
+            if (dt.Rows.Count == 0)
+            {
+                MessageBox.Show("La venta no existe o ya tiene una factura.", "Venta no disponible", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+
+                return;
+            }
+
+            DataRow fila = dt.Rows[0];
+
+            MessageBox.Show("Venta encontrada correctamente.", "Éxito", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+            // DATOS DEL CLIENTE
+            txtMostrarCliente.Text = fila["Cliente"].ToString();
+            txtDui.Text = fila["Documento"].ToString();
+            txtTelefono.Text = fila["Telefono"].ToString();
+            txtCorreo.Text = fila["Correo"].ToString();
+
+            // FECHA DE VENTA
+            dtpFechaVenta.Text = Convert.ToDateTime(fila["Fecha de Venta"]).ToString("dd/MM/yyyy");
+
+            // SUBTOTAL
+            txtSubTotal.Text = Convert.ToDecimal(fila["SubTotal"]).ToString("0.00");
+
+            // DESCUENTO
+            txtDescuento.Text = "0.00";
+
+            // CALCULAR IVA Y TOTAL
+            CalcularTotales();
+
+            // CARGAR DETALLE DE LA VENTA
+            MostrarDetalleFactura(idVenta);
+
+            // Calcular cantidad total de productos
+            int cantidadProductos = CalcularCantidadProductos();
+            // Mostrar cantidad en la pestaña verde
+            lblTotalDeProductos.Text = cantidadProductos.ToString();
+        }
+
+        private void CalcularTotales()
+        {
+            // Obtener el subtotal 
+            if (!decimal.TryParse(txtSubTotal.Text, out decimal subtotal))
+                return;
+
+            // Obtener el descuento
+            if (!decimal.TryParse(txtDescuento.Text, out decimal descuento))
+                descuento = 0;
+
+            // Validar que el descuento no puede ser un numero negativo
+            if (descuento < 0)
+            {
+                descuento = 0;
+                txtDescuento.Text = "0.00";
+            }
+
+            // El descuento no puede superar el subtotal
+            if (descuento > subtotal)
+            {
+                MessageBox.Show("El descuento no puede ser mayor que el subtotal.", "Descuento inválido", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+
+                descuento = 0;
+                //Declarar el valor del descuento inicial
+                txtDescuento.Text = "";
+            }
+
+            // Restar el descuento al subtotal de la vista
+            decimal subtotalConDescuento = subtotal - descuento;
+
+            // Calcular IVA del 13% ya con el descuento aplicado
+            decimal iva = subtotalConDescuento * 0.13m;
+
+            // Calcular total de la venta para mostrarlo en la factura
+            decimal total = subtotalConDescuento + iva;
+
+            // Mostrar resultados finales
+            txtIVA.Text = iva.ToString("0.00");
+            txtTotal.Text = total.ToString("0.00");
+        }
+
+        private void txtDescuento_TextChanged(object sender, EventArgs e)
+        {
+            CalcularTotales();
+        }
+
+
+        private void txtTotal_TextChanged(object sender, EventArgs e)
+        {
+            lblTotalAPagar.Text = "Total a pagar: $ " + txtTotal.Text;
+        }
+
+        //Metodo para calcular la cantidad total de la venta
+        private int CalcularCantidadProductos()
+        {
+            int cantidadTotal = 0;
+            //Recorre todas las filas de la tabla y las acumula dentro de la variable
+
+            foreach (DataGridViewRow fila in dgvDetalleVenta.Rows)
+            {
+                if (fila.IsNewRow)
+                    continue;
+                //Tomma en cuenta cada valor que se encuentre en la columna de cantidad y lo guarda en otra variable
+                // para luego poder sumar los productos
+
+                if (fila.Cells["Cantidad"].Value != null)
+                {
+                    if (int.TryParse(fila.Cells["Cantidad"].Value.ToString(), out int cantidad))
+                    {
+                        cantidadTotal += cantidad;
+                    }
+                }
+            }
+
+            return cantidadTotal;
+        }
+
+
+        private void dgvFacturasRegistradas_CellDoubleClick(object sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex < 0)
+                return;
+
+            int idFactura = Convert.ToInt32(dgvFacturasRegistradas.Rows[e.RowIndex].Cells["IdFactura"].Value);
+
+            frmEditarFactura formulario = new frmEditarFactura(idFactura);
+
+            formulario.ShowDialog();
+
+            MostrarRegistrosFacturas();
+            dgvFacturasRegistradas.Columns["IdFactura"].HeaderText = "N° de Factura";
+            dgvFacturasRegistradas.Columns["Fecha"].HeaderText = "Fecha de emisión";
+        }
+
+
+        private void GuardarFactura()
+        {
+            try
+            {
+                // VALIDAR EL NUMERO DE LA VENTA QUE SE INGRESO
+                if (string.IsNullOrWhiteSpace(txtnVenta.Text))
+                {
+                    errorProvider1.SetError(txtnVenta, "Debe ingresar el número de venta.");
+                    txtnVenta.Focus();
+                    return;
+                }
+
+                if (!int.TryParse(txtnVenta.Text.Trim(), out int idVenta))
+                {
+                    errorProvider1.SetError(txtnVenta, "El número de venta debe ser un número válido.");
+                    txtnVenta.Focus();
+                    return;
+                }
+
+                // VALIDACIÓN DE FECHAS
+                DateTime fechaEmision = dtFechaDatosGeneralesFactura.Value;
+                DateTime fechaVencimiento = dtpFechaVencimiento.Value;
+
+                if (fechaVencimiento < fechaEmision)
+                {
+                    errorProvider1.SetError(dtpFechaVencimiento, "La fecha de vencimiento no puede ser menor que la fecha de emisión.");
+                    dtpFechaVencimiento.Focus();
+                    return;
+                }
+
+                // OBTIENE EL DESCUENTO Y LO ALMACENA EN LA VARIABLE LUEGO DE CONVERTIRLO
+                if (!decimal.TryParse(txtDescuento.Text.Trim(), out decimal descuento))
+                {
+                    descuento = 0;
+                }
+
+                if (descuento < 0)
+                {
+                    errorProvider1.SetError(txtDescuento, "El descuento no puede ser negativo.");
+                    txtDescuento.Focus();
+                    return;
+                }
+                // OBSERVACIONES
+                string observaciones = txtObservaciones.Text.Trim();
+                //CREA EL OBJETO DE UNA NUEVA FACTURA
+                DbFactura factura = new DbFactura();
+
+                factura.FechaEmisión1 = fechaEmision;
+                factura.FechaVencimiento1 = fechaVencimiento;
+                factura.Venta1 = idVenta;
+                factura.Descuento1 = descuento;
+                factura.Observaciones1 = observaciones;
+
+                int idFactura = factura.InsertarFactura();
+
+                //GUARDA EL ID DE LA FACTURA Y LO MUESTRA EN EL TEXTBOX
+                if (idFactura == 0)
+                {
+                    return;
+                }
+                //MUESTRA EL NUMERO DE LA FACTURA
+                txtNumeroFactura.Text = idFactura.ToString();
+
+                //ACTUALIZA LA TABLA DE LOS REGISTROS LUEGO DE GUARDAR LA FACTURA
+                MostrarRegistrosFacturas();
+
+                MessageBox.Show($"La factura N.º {idFactura} se guardó correctamente.\n\n" + "Ahora puedes presionar 'Generar PDF'.", "Factura guardada", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+
+            }
+            catch (SqlException ex)
+            {
+                MessageBox.Show("Error al insertar la factura:\n\n" + ex.Message, "Error " + ex.Number, MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+        private void LimpiarFormulario()
+        {
+            // Limpiar número de venta
+            txtnVenta.Clear();
+
+            // Limpiar datos del cliente
+            txtMostrarCliente.Clear();
+            txtTelefono.Clear();
+            txtDui.Clear();
+            txtCorreo.Clear();
+
+            // Restablecer fechas
+            if (DateTime.Now >= dtFechaDatosGeneralesFactura.MinDate && DateTime.Now <= dtFechaDatosGeneralesFactura.MaxDate)
+            {
+                dtFechaDatosGeneralesFactura.Value = DateTime.Now;
+            }
+
+            if (DateTime.Now >= dtpFechaVencimiento.MinDate && DateTime.Now <= dtpFechaVencimiento.MaxDate)
+            {
+                dtpFechaVencimiento.Value = DateTime.Now;
+            }
+
+            // Limpiar número de factura
+            txtNumeroFactura.Clear();
+
+            //Limpiar total de productos
+            lblTotalDeProductos.Text = "";
+
+            // Limpiar observaciones
+            txtObservaciones.Clear();
+
+            // Limpiar detalles de productos
+            dgvDetalleVenta.DataSource = null;
+            dgvDetalleVenta.Rows.Clear();
+
+            // Limpiar resumen de pago
+            txtSubTotal.Clear();
+            txtIVA.Clear();
+            txtDescuento.Clear();
+            txtTotal.Clear();
+
+            // Restablecer total a pagar
+            lblTotalAPagar.Text = "Total a pagar $ : 0.00";
+        }
+
+        private void btnAnterior_Click(object sender, EventArgs e)
+        {
+            if (paginaActual > 1)
+            {
+                paginaActual--;
+                MostrarPaginaFacturas();
+            }
+        }
+
+        private void btnSiguiente_Click(object sender, EventArgs e)
+        {
+
+            if (paginaActual < totalPaginas)
+            {
+                paginaActual++;
+                MostrarPaginaFacturas();
+            }
+        }
+
+        private void txtBuscar_TextChanged_1(object sender, EventArgs e)
+        {
+            try
+            {
+                if (txtBuscar.Text == TextoBusqueda)
+                    return;
+
+                string buscar = txtBuscar.Text.Trim();
+
+                if (string.IsNullOrWhiteSpace(buscar))
+                {
+                    paginaActual = 1;
+                    dtFacturas = null;
+                    MostrarRegistrosFacturas();
+                    return;
+                }
+
+                dtFacturas = DbFactura.BuscarFacturas(buscar);
+
+                int totalResultados = dtFacturas.Rows.Count;
+
+                totalPaginas = (int)Math.Ceiling((double)totalResultados / registrosPorPagina);
+
+                if (totalPaginas == 0)
+                    totalPaginas = 1;
+
+                paginaActual = 1;
+
+                MostrarPaginaFacturas();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Ocurrió un error al buscar facturas.\n" + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void btnGenerarPDF_Click_1(object sender, EventArgs e)
+        {
+            try
+            {// Verificar que exista una factura
+                if (!int.TryParse(txtNumeroFactura.Text.Trim(), out int idFactura))
+                {
+                    MessageBox.Show("Primero debes guardar una factura.", "Generar PDF", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                using (SaveFileDialog guardar = new SaveFileDialog())
+                {
+                    guardar.Title = "Guardar factura en PDF";
+                    guardar.Filter = "Archivo PDF (*.pdf)|*.pdf";
+                    guardar.FileName = $"Factura_{idFactura}.pdf";
+
+                    if (guardar.ShowDialog() != DialogResult.OK)
+                        return;
+
+                    // Generar el PDF
+                    GeneradorFactura.Generar(idFactura, guardar.FileName);
+
+                    // Abrir automáticamente el PDF
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = guardar.FileName,
+                        UseShellExecute = true
+                    });
+
+                    // Limpiar solamente después de generar
+                    LimpiarFormulario();
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error al generar el PDF:\n" + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void btnLimpiarFactura_Click_1(object sender, EventArgs e)
+        {
+            txtnVenta.Text = null;
+            txtMostrarCliente.Text = null;
+            txtTelefono.Text = null;
+            txtDui.Text = null;
+            txtCorreo.Text = null;
+            txtNumeroFactura.Text = null;
+            txtSubTotal.Text = null;
+            txtIVA.Text = null;
+            txtDescuento.Text = null;
+            txtTotal.Text = null;
+            txtObservaciones.Text = null;
+        }
+
+        private void btnLimpiarFiltros_Click(object sender, EventArgs e)
+        {
+            // Vaciar el buscador
+            txtBuscar.Text = "";
+
+            // Volver a mostrar el texto de indicación
+            txtBuscar.Text = "Buscar...";
+            txtBuscar.ForeColor = Color.Gray;
+
+            // Recargar todas las facturas
+            MostrarRegistrosFacturas();
+        }
+
+        private void btnGuardarFactura_Click_1(object sender, EventArgs e)
+        {
+            GuardarFactura();
+            MostrarRegistrosFacturas();
+        }
+
+        private void dtFechaDatosGeneralesFactura_ValueChanged(object sender, EventArgs e)
+        {
+            errorProvider1.Clear();
+        }
+
+        private void dtpFechaVencimiento_ValueChanged(object sender, EventArgs e)
+        {
+            errorProvider1.Clear();
+
+        }
+    }
+}
+
