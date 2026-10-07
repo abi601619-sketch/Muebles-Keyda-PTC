@@ -67,7 +67,7 @@ namespace Vista.Ayuda
         {
             try
             {
-                AbrirManual("ManualUsuario.pdf");
+                AbrirManual("Manual de usuario.pdf");
             }
             catch (FileNotFoundException)
             {

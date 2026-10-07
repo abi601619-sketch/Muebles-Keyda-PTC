@@ -177,7 +177,6 @@ namespace Vista.Dashboard
             }
         }
 
-
         private void CargarPedidosPorEstado()
         {
             try
@@ -185,13 +184,19 @@ namespace Vista.Dashboard
                 DataTable datos = DbDashboard.ObtenerPedidosPorEstado();
 
                 chartPedidosEstado.Series.Clear();
-
+                chartPedidosEstado.Titles.Clear();       // Limpiar títulos anteriores
                 chartPedidosEstado.Legends.Clear();
 
                 if (datos.Rows.Count == 0)
                 {
                     return;
                 }
+
+                // TÍTULO DEL GRÁFICO
+
+                Title titulo = chartPedidosEstado.Titles.Add("Pedidos por Estado");
+
+                titulo.Font = new Font("Times New Roman", 12, FontStyle.Bold);
 
                 Series serie = new Series("Pedidos");
 
@@ -255,8 +260,9 @@ namespace Vista.Dashboard
                 chartVentasMes.Titles.Clear();
                 chartVentasMes.Legends.Clear();
 
-                chartVentasMes.Titles.Add("Ventas por Mes");
+                Title titulo = chartVentasMes.Titles.Add("Ventas por mes");
 
+                titulo.Font = new Font("Times New Roman", 12, FontStyle.Bold);
                 Series serie = new Series("Ventas");
 
                 serie.ChartType = SeriesChartType.Column;
@@ -298,7 +304,9 @@ namespace Vista.Dashboard
                 chartCotizacionesEstado.Titles.Clear();
                 chartCotizacionesEstado.Legends.Clear();
 
-                chartCotizacionesEstado.Titles.Add("Cotizaciones por Estado");
+                Title titulo = chartCotizacionesEstado.Titles.Add("Cotizaciones por Estado");
+
+                titulo.Font = new Font("Times New Roman", 12, FontStyle.Bold);
 
                 Series serie = new Series("Cotizaciones");
 

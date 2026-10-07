@@ -14,14 +14,14 @@ namespace Modelo.Servicios
 
             mensaje.To.Add(MailboxAddress.Parse(correoDestino));
 
-            mensaje.Subject = "wrsj cwmi vsyq pwoh";
+            mensaje.Subject = "Recuperación de contraseña";
 
             mensaje.Body = new TextPart("html")
             {
                 Text = $@" <html>
                 <body>
 
-                    <h2>Recuperación de contraseña</h2>
+                    <h2>¿Olvidaste tu contraseña?</h2>
 
                     <p>
                         Hemos recibido una solicitud

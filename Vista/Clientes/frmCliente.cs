@@ -1320,9 +1320,9 @@ namespace Vista.Clientes
                 tipoClienteSeleccionado = 1;
 
                 // Guardar los datos originales
-                identificador1Original = fila.Cells["Nombre_De_Empresa"].Value?.ToString() ?? "";
+                identificador1Original = fila.Cells["Empresa"].Value?.ToString() ?? "";
 
-                identificador2Original = fila.Cells["Nombre_Del_Encargado"].Value?.ToString() ?? "";
+                identificador2Original = fila.Cells["Encargado"].Value?.ToString() ?? "";
 
                 documentoOriginal = fila.Cells["NIT"].Value?.ToString() ?? "";
 
@@ -1701,8 +1701,7 @@ namespace Vista.Clientes
 
             dgvClientesIndividuales.DataSource = null;
             dgvClientesIndividuales.DataSource = dtPagina;
-            FormatearTablaCorporativos();
-
+            FormatearTablaIndividuales();
 
             lblPagina.Text = $"Página {paginaActualIndividual} de {totalPaginasIndividual}";
 

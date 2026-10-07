@@ -683,15 +683,38 @@ namespace Vista.Facturación
             if (e.RowIndex < 0)
                 return;
 
-            int idFactura = Convert.ToInt32(dgvFacturasRegistradas.Rows[e.RowIndex].Cells["IdFactura"].Value);
+            int idFactura = Convert.ToInt32(
+                dgvFacturasRegistradas.Rows[e.RowIndex].Cells["IdFactura"].Value
+            );
 
-            frmEditarFactura formulario = new frmEditarFactura(idFactura);
+            // Crear overlay
+            Vista.Overlay.Overlay overlay = new Vista.Overlay.Overlay();
 
-            formulario.ShowDialog();
+            overlay.StartPosition = FormStartPosition.Manual;
+            overlay.Location = this.PointToScreen(Point.Empty);
+            overlay.Size = this.Size;
 
-            MostrarRegistrosFacturas();
-            dgvFacturasRegistradas.Columns["IdFactura"].HeaderText = "N° de Factura";
-            dgvFacturasRegistradas.Columns["Fecha"].HeaderText = "Fecha de emisión";
+            overlay.Show(this);
+            overlay.Refresh();
+
+            try
+            {
+                // Abrir formulario de edición
+                frmEditarFactura formulario = new frmEditarFactura(idFactura);
+
+                formulario.ShowDialog(this);
+
+                MostrarRegistrosFacturas();
+
+                dgvFacturasRegistradas.Columns["IdFactura"].HeaderText = "N° de Factura";
+                dgvFacturasRegistradas.Columns["Fecha"].HeaderText = "Fecha de emisión";
+            }
+            finally
+            {
+                // Cerrar overlay
+                overlay.Close();
+                overlay.Dispose();
+            }
         }
 
 

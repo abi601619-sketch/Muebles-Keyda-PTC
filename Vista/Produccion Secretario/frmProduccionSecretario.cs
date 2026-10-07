@@ -467,29 +467,61 @@ namespace Vista.Produccion_Secretario
                 // Verifica que exista una producción seleccionada
                 if (dgvProduccion.CurrentRow == null)
                 {
-                    MessageBox.Show("Selecciona una producción.", "Aviso", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    MessageBox.Show(
+                        "Selecciona una producción.",
+                        "Aviso",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning
+                    );
 
                     return;
                 }
 
                 // Obtiene el ID de la producción
-                int idProduccion = Convert.ToInt32(dgvProduccion.CurrentRow.Cells["IdProduccion"].Value);
+                int idProduccion = Convert.ToInt32(
+                    dgvProduccion.CurrentRow.Cells["IdProduccion"].Value
+                );
 
-                // Abre el formulario de edición
-                frmEditarProduccion formulario = new frmEditarProduccion(idProduccion);
+                // Crear overlay
+                Vista.Overlay.Overlay overlay = new Vista.Overlay.Overlay();
 
-                DialogResult resultado = formulario.ShowDialog();
+                overlay.StartPosition = FormStartPosition.Manual;
+                overlay.Location = this.PointToScreen(Point.Empty);
+                overlay.Size = this.Size;
 
-                // Actualiza la tabla si se guardaron cambios
-                if (resultado == DialogResult.OK)
+                overlay.Show(this);
+                overlay.Refresh();
+
+                try
                 {
-                    MostrarProduccion();
-                    ActualizarEstadisticas();
+                    // Abre el formulario de edición
+                    frmEditarProduccion formulario =
+                        new frmEditarProduccion(idProduccion);
+
+                    DialogResult resultado = formulario.ShowDialog(this);
+
+                    // Actualiza la tabla si se guardaron cambios
+                    if (resultado == DialogResult.OK)
+                    {
+                        MostrarProduccion();
+                        ActualizarEstadisticas();
+                    }
+                }
+                finally
+                {
+                    // Siempre cerrar el overlay
+                    overlay.Close();
+                    overlay.Dispose();
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Error al editar la producción: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(
+                    "Error al editar la producción: " + ex.Message,
+                    "Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error
+                );
             }
         }
         //_---------------------------------------------------------------------------------------
@@ -552,28 +584,63 @@ namespace Vista.Produccion_Secretario
                 // Verifica que exista una producción seleccionada
                 if (dgvProduccion.CurrentRow == null)
                 {
-                    MessageBox.Show("Selecciona una producción.", "Aviso", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    MessageBox.Show(
+                        "Selecciona una producción.",
+                        "Aviso",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning
+                    );
 
                     return;
                 }
 
                 // Obtiene el ID de la producción
-                int idProduccion = Convert.ToInt32(dgvProduccion.CurrentRow.Cells["IdProduccion"].Value);
+                int idProduccion = Convert.ToInt32(
+                    dgvProduccion.CurrentRow.Cells["IdProduccion"].Value
+                );
 
                 // Obtiene el nombre del producto
                 string producto = dgvProduccion.CurrentRow.Cells["Producto"].Value?.ToString() ?? "";
 
                 // Obtiene la fecha de entrega
-                DateTime fechaEntrega = Convert.ToDateTime(dgvProduccion.CurrentRow.Cells["Fecha de Entrega"].Value);
+                DateTime fechaEntrega = Convert.ToDateTime(
+                    dgvProduccion.CurrentRow.Cells["Fecha de Entrega"].Value
+                );
 
-                // Abre el formulario de materiales utilizados
-                frmMaterialUtilizado formulario = new frmMaterialUtilizado(idProduccion, producto, fechaEntrega);
+                // Crear overlay
+                Vista.Overlay.Overlay overlay = new Vista.Overlay.Overlay();
 
-                formulario.ShowDialog();
+                overlay.StartPosition = FormStartPosition.Manual;
+                overlay.Location = this.PointToScreen(Point.Empty);
+                overlay.Size = this.Size;
+
+                // Mostrar overlay
+                overlay.Show(this);
+                overlay.Refresh();
+
+                try
+                {
+                    // Abre el formulario de materiales utilizados
+                    frmMaterialUtilizado formulario =
+                        new frmMaterialUtilizado(idProduccion, producto, fechaEntrega);
+
+                    formulario.ShowDialog(this);
+                }
+                finally
+                {
+                    // Cerrar overlay
+                    overlay.Close();
+                    overlay.Dispose();
+                }
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Error al mostrar los materiales utilizados: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(
+                    "Error al mostrar los materiales utilizados: " + ex.Message,
+                    "Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error
+                );
             }
 
         }

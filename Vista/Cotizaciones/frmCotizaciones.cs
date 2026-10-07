@@ -789,22 +789,46 @@ namespace Vista.Cotizaciones
 
         private void btnBuscarCliente_Click_2(object sender, EventArgs e)
         {
-            using (frmBuscarCliente modal = new frmBuscarCliente())
-            {
-                if (modal.ShowDialog() == DialogResult.OK)
-                {
-                    idClienteSeleccionado = modal.IdClienteSeleccionado;
+            // Crear overlay
+            Vista.Overlay.Overlay overlay = new Vista.Overlay.Overlay();
 
-                    txtCliente.Text = modal.NombreClienteSeleccionado;
-                    txtTelefono.Text = modal.TelefonoClienteSeleccionado;
-                    txtCorreo.Text = modal.CorreoClienteSeleccionado;
-                    txtDireccion.Text = modal.DireccionClienteSeleccionado;
+            overlay.StartPosition = FormStartPosition.Manual;
+            overlay.Location = this.PointToScreen(Point.Empty);
+            overlay.Size = this.Size;
+
+            overlay.Show(this);
+
+            try
+            {
+                using (frmBuscarCliente modal = new frmBuscarCliente())
+                {
+                    if (modal.ShowDialog(this) == DialogResult.OK)
+                    {
+                        idClienteSeleccionado = modal.IdClienteSeleccionado;
+
+                        txtCliente.Text = modal.NombreClienteSeleccionado;
+                        txtTelefono.Text = modal.TelefonoClienteSeleccionado;
+                        txtCorreo.Text = modal.CorreoClienteSeleccionado;
+                        txtDireccion.Text = modal.DireccionClienteSeleccionado;
+                    }
                 }
+            }
+            finally
+            {
+                // Cerrar overlay
+                overlay.Close();
+                overlay.Dispose();
             }
 
             if (idClienteSeleccionado == 0)
             {
-                MessageBox.Show("Selecciona un cliente.");
+                MessageBox.Show(
+                    "Selecciona un cliente.",
+                    "Aviso",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning
+                );
+
                 return;
             }
         }
@@ -1111,16 +1135,39 @@ namespace Vista.Cotizaciones
         private void btnEditar_Click_1(object sender, EventArgs e)
         {
             cbEstado.Enabled = false;
+
             if (dgvCotizacionesRegistradas.CurrentRow != null)
             {
-                int idCotizacion = Convert.ToInt32(dgvCotizacionesRegistradas.CurrentRow.Cells["IdCotizacion"].Value);
+                int idCotizacion = Convert.ToInt32(
+                    dgvCotizacionesRegistradas.CurrentRow.Cells["IdCotizacion"].Value
+                );
+
                 string estadoActual = dgvCotizacionesRegistradas.CurrentRow.Cells["Estado"].Value?.ToString();
 
-                DialogResult result = MessageBox.Show("¿Deseas cambiar el estado de la cotización? #" + idCotizacion + "?\n\nPresiona SI para marcarla como 'Aprobada'.\nPresiona NO para marcarla como 'Rechazada'.\nPresiona CANCELAR para no hacer nada.", "Cambiar Estado",
+                Vista.Overlay.Overlay overlay = new Vista.Overlay.Overlay();
+
+                overlay.StartPosition = FormStartPosition.Manual;
+                overlay.Location = this.PointToScreen(Point.Empty);
+                overlay.Size = this.Size;
+
+                overlay.Show(this);
+                overlay.Refresh();
+
+                DialogResult result = MessageBox.Show(
+                    "¿Deseas cambiar el estado de la cotización? #" + idCotizacion +
+                    "?\n\nPresiona SI para marcarla como 'Aprobada'." +
+                    "\nPresiona NO para marcarla como 'Rechazada'." +
+                    "\nPresiona CANCELAR para no hacer nada.",
+                    "Cambiar Estado",
                     MessageBoxButtons.YesNoCancel,
-                    MessageBoxIcon.Question);
+                    MessageBoxIcon.Question
+                );
+
+                overlay.Close();
+                overlay.Dispose();
 
                 string nuevoEstado = "";
+
                 if (result == DialogResult.Yes) nuevoEstado = "Aprobada";
                 else if (result == DialogResult.No) nuevoEstado = "Rechazada";
                 else return;
@@ -1130,12 +1177,23 @@ namespace Vista.Cotizaciones
 
                 if (cot.ActualizarEstado(nuevoEstado))
                 {
-                    MessageBox.Show("El estado se actualizó exitosamente a: " + nuevoEstado, "Éxito", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    MessageBox.Show(
+                        "El estado se actualizó exitosamente a: " + nuevoEstado,
+                        "Éxito",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information
+                    );
+
                     MostrarCotizacionesRegistradas();
                 }
                 else
                 {
-                    MessageBox.Show("Ocurrió un error al actualizar el estado.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show(
+                        "Ocurrió un error al actualizar el estado.",
+                        "Error",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error
+                    );
                 }
             }
             else
@@ -1148,25 +1206,110 @@ namespace Vista.Cotizaciones
         {
             if (dgvCotizacionesRegistradas.CurrentRow != null)
             {
-                int idCotizacion = Convert.ToInt32(dgvCotizacionesRegistradas.CurrentRow.Cells["IdCotizacion"].Value);
+                int idCotizacion = Convert.ToInt32(
+                    dgvCotizacionesRegistradas.CurrentRow.Cells["IdCotizacion"].Value
+                );
+
                 string estado = dgvCotizacionesRegistradas.CurrentRow.Cells["Estado"].Value?.ToString();
 
                 if (estado != "Aprobada")
                 {
-                    MessageBox.Show("Solo las cotizaciones Aprobadas pueden convertirse en Pedidos.", "Atención", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    Vista.Overlay.Overlay overlay = new Vista.Overlay.Overlay();
+
+                    overlay.StartPosition = FormStartPosition.Manual;
+                    overlay.Location = this.PointToScreen(Point.Empty);
+                    overlay.Size = this.Size;
+
+                    overlay.Show(this);
+                    overlay.Refresh();
+
+                    MessageBox.Show(
+                        "Solo las cotizaciones Aprobadas pueden convertirse en Pedidos.",
+                        "Atención",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning
+                    );
+
+                    overlay.Close();
+                    overlay.Dispose();
+
                     return;
                 }
 
+                Vista.Overlay.Overlay overlayConfirmacion = new Vista.Overlay.Overlay();
+
+                overlayConfirmacion.StartPosition = FormStartPosition.Manual;
+                overlayConfirmacion.Location = this.PointToScreen(Point.Empty);
+                overlayConfirmacion.Size = this.Size;
+
+                overlayConfirmacion.Show(this);
+                overlayConfirmacion.Refresh();
+
+                DialogResult resultado = MessageBox.Show(
+                    "¿Deseas convertir la cotización #" + idCotizacion +
+                    " en un Pedido?",
+                    "Convertir Cotización",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Question
+                );
+
+                overlayConfirmacion.Close();
+                overlayConfirmacion.Dispose();
+
+                if (resultado == DialogResult.No)
+                    return;
+
                 DateTime fechaEntrega = DateTime.Now.AddDays(15);
-                bool exito = DbPedidos.ConvertirCotizacionAPedido(idCotizacion, fechaEntrega);
+
+                bool exito = DbPedidos.ConvertirCotizacionAPedido(
+                    idCotizacion,
+                    fechaEntrega
+                );
+
                 if (exito)
                 {
-                    MessageBox.Show("¡La cotización se ha convertido en Pedido exitosamente!\nFecha estimada de entrega: " + fechaEntrega.ToShortDateString(), "Éxito", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    Vista.Overlay.Overlay overlay = new Vista.Overlay.Overlay();
+
+                    overlay.StartPosition = FormStartPosition.Manual;
+                    overlay.Location = this.PointToScreen(Point.Empty);
+                    overlay.Size = this.Size;
+
+                    overlay.Show(this);
+                    overlay.Refresh();
+
+                    MessageBox.Show(
+                        "¡La cotización se ha convertido en Pedido exitosamente!\n" +
+                        "Fecha estimada de entrega: " +
+                        fechaEntrega.ToShortDateString(),
+                        "Éxito",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information
+                    );
+
+                    overlay.Close();
+                    overlay.Dispose();
                 }
             }
             else
             {
-                MessageBox.Show("Por favor, selecciona una cotización de la tabla primero.");
+                Vista.Overlay.Overlay overlay = new Vista.Overlay.Overlay();
+
+                overlay.StartPosition = FormStartPosition.Manual;
+                overlay.Location = this.PointToScreen(Point.Empty);
+                overlay.Size = this.Size;
+
+                overlay.Show(this);
+                overlay.Refresh();
+
+                MessageBox.Show(
+                    "Por favor, selecciona una cotización de la tabla primero.",
+                    "Aviso",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning
+                );
+
+                overlay.Close();
+                overlay.Dispose();
             }
         }
 
