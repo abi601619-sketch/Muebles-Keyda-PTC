@@ -875,6 +875,7 @@ GO
 
 CREATE VIEW BuscarClientesIndividuales AS
 SELECT
+    c.IdCliente,
     c.Identificador1 AS Nombre,
     c.Identificador2 AS Apellidos,
     c.Documento AS DUI,
@@ -889,11 +890,12 @@ WHERE tc.TipoCliente = 'Persona Natural';
 
 GO
 
---23.Vista para 
+--23.Vista para buscar un cliente corporativo por medio de la barra de busqueda
 
 CREATE VIEW BuscarClientesCorporativos AS
 SELECT
-    c.Identificador1 AS [Empresa],
+    c.IdCliente,
+    c.Identificador1 AS Empresa,
     c.Identificador2 AS Encargado,
     c.Documento AS NIT,
     c.Telefono,
@@ -919,6 +921,36 @@ SELECT
 FROM Productos_Cotizacion pc
 INNER JOIN Cotizacion co
     ON pc.IdCotizacion = co.IdCotizacion;
+
+GO
+
+--24.Vista para ver la tabla de reportes de cotizaciones.
+
+CREATE VIEW VerCotizaciones2 AS
+SELECT
+    co.IdCotizacion AS IdCotizacion,
+
+    co.Fecha AS Fecha,
+
+    CASE
+        WHEN tc.TipoCliente = 'Persona Natural'
+        THEN CONCAT(c.Identificador1, ' ', c.Identificador2)
+        ELSE c.Identificador1
+    END AS Cliente,
+
+    tc.TipoCliente AS TipoCliente,
+
+    co.Estado AS Estado,
+
+    co.Total AS Total
+
+FROM Cotizacion co
+
+INNER JOIN Cliente c
+    ON co.IdCliente = c.IdCliente
+
+INNER JOIN TipoCliente tc
+    ON c.IdTipoCliente = tc.IdTipoCliente;
 
 GO
 /*=========================================================*/
