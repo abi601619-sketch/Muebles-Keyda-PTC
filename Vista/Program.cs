@@ -23,6 +23,9 @@ namespace Vista
 
             QuestPDF.Settings.License = LicenseType.Community;
 
+            // LOS DATOS DE LA EMPRESA (LOGO, NOMBRE...) SE PIERDEN AL ACTUALIZAR A UNA VERSIÓN NUEVA; SE RECUPERAN DE LA ANTERIOR
+            Modelo.RecuperadorConfiguracionEmpresa.Recuperar();
+
             AplicarIconoPredeterminado();
 
             bool existenUsuarios = DbUsuarios.ExistenUsuarios();
