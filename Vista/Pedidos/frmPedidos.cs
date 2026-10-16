@@ -401,8 +401,7 @@ namespace Vista.Pedidos
 
                 bool cancelado = DetallePedidos.EliminarDetalle(pedido, detalle, ultimo);
 
-                dgvDetallesDePedido.DataSource =
-                    DetallePedidos.CargarDetallesPorPedido(pedido);
+                dgvDetallesDePedido.DataSource = DetallePedidos.CargarDetallesPorPedido(pedido);
 
                 ConfigurarColumnasDetalles();
                 MostrarPedidos();

@@ -371,6 +371,59 @@ namespace Vista.Producción
 
                 return;
             }
+            // VALIDAR QUE LA PRODUCCIÓN NO ESTÉ FINALIZADA
+
+            try
+            {
+                using (SqlConnection conexion = Conexion.Conectar())
+                {
+                    string consulta = @"
+            SELECT Progreso
+            FROM Produccion
+            WHERE IdProduccion = @IdProduccion";
+
+                    using (SqlCommand cmd = new SqlCommand(consulta, conexion))
+                    {
+                        cmd.Parameters.AddWithValue("@IdProduccion", idProduccion);
+
+                        object resultado = cmd.ExecuteScalar();
+
+                        if (resultado == null || resultado == DBNull.Value)
+                        {
+                            MessageBox.Show(
+                                "No se encontró la producción seleccionada.",
+                                "Aviso",
+                                MessageBoxButtons.OK,
+                                MessageBoxIcon.Warning);
+
+                            return;
+                        }
+
+                        int progreso = Convert.ToInt32(resultado);
+
+                        if (progreso >= 100)
+                        {
+                            MessageBox.Show(
+                                "No puedes agregar materiales a una producción finalizada.",
+                                "Producción finalizada",
+                                MessageBoxButtons.OK,
+                                MessageBoxIcon.Warning);
+
+                            return;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    "Error al validar la producción: " + ex.Message,
+                    "Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+
+                return;
+            }
 
             // OBTENER DATOS DEL MATERIAL
 

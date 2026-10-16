@@ -41,6 +41,18 @@ namespace Vista.Producción
 
             bool encontrado = produccion.ObtenerProduccion();
 
+            // Cargar el progreso actual
+            nudProgreso.Value = produccion.Progreso1;
+
+            // Si ya está finalizada, bloquear la edición del progreso
+            if (produccion.Progreso1 == 100)
+            {
+                nudProgreso.Enabled = false;
+                btnGuardarCambios.Enabled = false;
+
+                MessageBox.Show("Esta producción ya está finalizada al 100 %. No se puede modificar.", "Producción finalizada", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+
             if (encontrado)
             {
                 txtCodigoProduccion.Text = produccion.IdProduccion1.ToString();
@@ -97,17 +109,22 @@ namespace Vista.Producción
         }
         private void btnGuardarCambios_Click_1(object sender, EventArgs e)
         {
-            bool cambioFecha = dtpFechaEntrega.Value.Date != fechaOriginal.Date;
+            bool cambioFecha =
+        dtpFechaEntrega.Value.Date != fechaOriginal.Date;
 
             bool cambioProgreso = (int)nudProgreso.Value != progresoOriginal;
 
-            // No se modificó nada
             if (!cambioFecha && !cambioProgreso)
             {
-                MessageBox.Show("No se detectaron cambios en la producción.", "Sin cambios", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                MessageBox.Show(
+                    "No se detectaron cambios en la producción.",
+                    "Sin cambios",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
 
                 return;
             }
+
             DbProducción produccion = new DbProducción();
 
             produccion.IdProduccion1 = idProduccion;
@@ -116,30 +133,9 @@ namespace Vista.Producción
 
             if (produccion.ActualizarProduccion())
             {
-                string mensaje;
-
-                if (cambioFecha && cambioProgreso)
-                {
-                    mensaje = "La fecha de entrega y el progreso de la producción han sido actualizados correctamente.";
-                }
-                else if (cambioFecha)
-                {
-                    mensaje = "La fecha de entrega de la producción ha sido modificada correctamente.";
-                }
-                else
-                {
-                    mensaje = "El progreso de la producción ha sido actualizado correctamente.";
-                    DialogResult = DialogResult.OK;
-
-                }
-
-                MessageBox.Show(mensaje, "Producción actualizada", MessageBoxButtons.OK, MessageBoxIcon.Information);
-
+                // Indicar al formulario principal que debe recargar la tabla.
+                DialogResult = DialogResult.OK;
                 Close();
-            }
-            else
-            {
-                MessageBox.Show("No se pudo actualizar la producción.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
     }
