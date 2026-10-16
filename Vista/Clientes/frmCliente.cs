@@ -1315,24 +1315,18 @@ namespace Vista.Clientes
                 DataGridViewRow fila = dgvClientesCorporativos.Rows[e.RowIndex];
 
                 // Obtener el ID del cliente
-                idClienteSeleccionado = Convert.ToInt32(fila.Cells["IdCliente"].Value);
+                idClienteSeleccionado = Convert.ToInt32(fila.Cells[0].Value);
 
                 tipoClienteSeleccionado = 1;
 
-                // Guardar los datos originales
-                identificador1Original = fila.Cells["Empresa"].Value?.ToString() ?? "";
-
-                identificador2Original = fila.Cells["Encargado"].Value?.ToString() ?? "";
-
-                documentoOriginal = fila.Cells["NIT"].Value?.ToString() ?? "";
-
-                telefonoOriginal = fila.Cells["Telefono"].Value?.ToString() ?? "";
-
-                correoOriginal = fila.Cells["Correo"].Value?.ToString() ?? "";
-
-                direccionOriginal = fila.Cells["Direccion"].Value?.ToString() ?? "";
-
-                estadoOriginal = fila.Cells["Estado"].Value?.ToString() ?? "";
+                // Guardar los datos originales por posición
+                identificador1Original = fila.Cells[1].Value?.ToString() ?? ""; // Empresa
+                identificador2Original = fila.Cells[2].Value?.ToString() ?? ""; // Encargado
+                documentoOriginal = fila.Cells[3].Value?.ToString() ?? "";     // NIT
+                telefonoOriginal = fila.Cells[4].Value?.ToString() ?? "";      // Teléfono
+                correoOriginal = fila.Cells[5].Value?.ToString() ?? "";        // Correo
+                direccionOriginal = fila.Cells[6].Value?.ToString() ?? "";     // Dirección
+                estadoOriginal = fila.Cells[7].Value?.ToString() ?? "";        // Estado
 
                 // Mostrar los datos en el formulario
                 txtNombreEmpresa.Text = identificador1Original;
@@ -1351,8 +1345,6 @@ namespace Vista.Clientes
                 // Mostrar botones
                 btnEditar.Visible = true;
                 btnGuardarCambios.Visible = false;
-
-                btnGuardarCambios.Visible = false;
                 btnGuardarIndividual.Visible = false;
 
                 // Mostrar datos de empresa
@@ -1365,7 +1357,12 @@ namespace Vista.Clientes
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Ocurrió un error al seleccionar el cliente.\n" + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(
+                    "Ocurrió un error al seleccionar el cliente.\n" + ex.Message,
+                    "Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error
+                );
             }
         }
 
