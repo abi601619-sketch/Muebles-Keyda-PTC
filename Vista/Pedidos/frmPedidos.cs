@@ -377,31 +377,57 @@ namespace Vista.Pedidos
         {
             if (e.RowIndex < 0 || e.ColumnIndex < 0 || dgvDetallesDePedido.Columns[e.ColumnIndex].Name != "EliminarProducto")
                 return;
+
             var fila = dgvDetallesDePedido.Rows[e.RowIndex];
-            if (fila.IsNewRow) return;
+
+            if (fila.IsNewRow)
+                return;
+
             int pedido = Convert.ToInt32(fila.Cells["IdPedido"].Value);
             int detalle = Convert.ToInt32(fila.Cells["IdDetallePedido"].Value);
+
             try
             {
                 bool ultimo = DetallePedidos.CargarDetallesPorPedido(pedido).Rows.Count == 1;
-                string aviso = ultimo ? "Al eliminar el último producto, el pedido quedará marcado como Cancelado. El registro del pedido se conservará. ¿Desea continuar?"
-                    : "¿Desea eliminar este producto del pedido?";
+
+                string aviso = ultimo ? "Este es el último producto del pedido. Si continúas, " +
+                      "el pedido quedará Cancelado y se procesarán sus registros relacionados. ¿Deseas continuar?"
+                    : "¿Deseas eliminar este producto del pedido?";
+
                 if (MessageBox.Show(aviso, "Confirmar eliminación", MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2) != DialogResult.Yes)
+                {
                     return;
+                }
+
                 bool cancelado = DetallePedidos.EliminarDetalle(pedido, detalle, ultimo);
-                dgvDetallesDePedido.DataSource = DetallePedidos.CargarDetallesPorPedido(pedido);
+
+                dgvDetallesDePedido.DataSource =
+                    DetallePedidos.CargarDetallesPorPedido(pedido);
+
                 ConfigurarColumnasDetalles();
                 MostrarPedidos();
+
                 if (cancelado && idPedidoSeleccionado == pedido)
                 {
                     txtEstado.Text = "Cancelado";
                     estadoOriginal = "Cancelado";
                 }
-                MessageBox.Show(cancelado ? "Producto eliminado. El pedido quedó Cancelado." : "Producto eliminado correctamente.");
+
+                MessageBox.Show(
+                    cancelado
+                        ? "Producto eliminado. El pedido quedó Cancelado."
+                        : "Producto eliminado correctamente.",
+                    "Operación completada",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
             }
             catch (Exception ex)
             {
-                MessageBox.Show("No se pudo eliminar el producto: " + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(
+                    "No se pudo eliminar el producto: " + ex.Message,
+                    "Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
             }
         }
         //--------------------------------------------------------------------------------
