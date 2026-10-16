@@ -496,7 +496,12 @@
       <Link>MueblesKeyda.sql</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <None Include="Recursos\Manuales\Manual de usuario.pdf" />
+    <Content Include="Recursos\Manuales\Manual de usuario.pdf">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Recursos\Manuales\MANUAL TECNICO.pdf">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <None Include="Resources\Captura de pantalla 2026-07-06 171749.png" />
   </ItemGroup>
   <ItemGroup>

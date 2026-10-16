@@ -1,4 +1,5 @@
 using Guna.UI2.WinForms;
+using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
 using Modelo;
 using Modelo.Entidades;
@@ -614,7 +615,16 @@ namespace Vista.Cotizaciones
 
             try
             {
-                await visorPDF.EnsureCoreWebView2Async();
+                // La app se instala en Program Files, donde un usuario normal no puede escribir:
+                // la carpeta de datos de WebView2 debe estar en el perfil del usuario.
+                string carpetaDatosWebView = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "Muebles Keyda", "WebView2");
+
+                Directory.CreateDirectory(carpetaDatosWebView);
+
+                CoreWebView2Environment entornoWebView = await CoreWebView2Environment.CreateAsync(null, carpetaDatosWebView);
+                await visorPDF.EnsureCoreWebView2Async(entornoWebView);
             }
             catch (Exception ex)
             {
@@ -1143,6 +1153,18 @@ namespace Vista.Cotizaciones
                 );
 
                 string estadoActual = dgvCotizacionesRegistradas.CurrentRow.Cells["Estado"].Value?.ToString();
+
+                if (estadoActual == "Cancelada")
+                {
+                    MessageBox.Show(
+                        "Esta cotización fue cancelada porque el usuario que la creó fue desactivado. Su estado ya no se puede cambiar.",
+                        "Cotización cancelada",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information
+                    );
+
+                    return;
+                }
 
                 Vista.Overlay.Overlay overlay = new Vista.Overlay.Overlay();
 

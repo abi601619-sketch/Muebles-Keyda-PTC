@@ -1,4 +1,7 @@
-﻿using MailKit.Net.Smtp;
+﻿using System;
+using System.IO;
+using System.Net.Sockets;
+using MailKit.Net.Smtp;
 using MailKit.Security;
 using MimeKit;
 
@@ -50,13 +53,32 @@ namespace Modelo.Servicios
 
             using (var cliente = new SmtpClient())
             {
-                cliente.Connect("smtp.gmail.com", 587, SecureSocketOptions.StartTls);
+                try
+                {
+                    cliente.Connect("smtp.gmail.com", 587, SecureSocketOptions.StartTls);
 
-                cliente.Authenticate("abi601619@gmail.com", "wrsj cwmi vsyq pwoh");
+                    cliente.Authenticate("abi601619@gmail.com", "wrsj cwmi vsyq pwoh");
 
-                cliente.Send(mensaje);
+                    cliente.Send(mensaje);
 
-                cliente.Disconnect(true);
+                    cliente.Disconnect(true);
+                }
+                catch (AuthenticationException ex)
+                {
+                    throw new Exception("Gmail rechazó el usuario o la contraseña de aplicación con la que el sistema envía los correos.\n\n" + ex.Message, ex);
+                }
+                catch (SmtpCommandException ex)
+                {
+                    throw new Exception("El servidor de correo rechazó el envío (" + ex.StatusCode + ").\n\n" + ex.Message, ex);
+                }
+                catch (SslHandshakeException ex)
+                {
+                    throw new Exception("No se pudo establecer la conexión segura con smtp.gmail.com. Revise la fecha y hora del equipo y el antivirus.\n\n" + ex.Message, ex);
+                }
+                catch (Exception ex) when (ex is SocketException || ex is IOException || ex is TimeoutException)
+                {
+                    throw new Exception("No se pudo conectar con smtp.gmail.com (puerto 587). Revise la conexión a internet o si un firewall o antivirus bloquea el puerto.\n\n" + ex.Message, ex);
+                }
             }
         }
     }
