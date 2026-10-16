@@ -87,6 +87,27 @@ namespace Modelo.Entidades
             }
         }
 
+        public bool ClienteActivoEnCotizacion(int idCotizacion)
+        {
+            string sql = @"
+        SELECT COUNT(*)
+        FROM dbo.Cotizacion co
+        INNER JOIN dbo.Cliente c
+            ON co.IdCliente = c.IdCliente
+        WHERE co.IdCotizacion = @IdCotizacion
+          AND c.Estado = 'Activo';";
+
+            using (SqlConnection conexion = Conexion.Conectar())
+            using (SqlCommand comando = new SqlCommand(sql, conexion))
+            {
+                comando.Parameters.Add("@IdCotizacion", SqlDbType.Int).Value = idCotizacion;
+
+                if (conexion.State != ConnectionState.Open)
+                    conexion.Open();
+
+                return Convert.ToInt32(comando.ExecuteScalar()) > 0;
+            }
+        }
         public int InsertarCotizacion()
         {
             string comandoSQL = @"INSERT INTO Cotizacion

@@ -162,18 +162,21 @@ namespace Modelo.Entidades
         {
             try
             {
-                string comandoSQL = @"UPDATE Usuario SET Estado = 0 WHERE IdUsuario = @IdUsuario;";
+                string comandoSQL = @"UPDATE dbo.Usuario SET Estado = 0 WHERE IdUsuario = @IdUsuario
+          AND Estado = 1;";
 
                 using (SqlConnection conexion = Conexion.Conectar())
                 using (SqlCommand comando = new SqlCommand(comandoSQL, conexion))
                 {
-                    comando.Parameters.AddWithValue("@IdUsuario", idUsuario);
+                    comando.Parameters.Add("@IdUsuario", SqlDbType.Int).Value = idUsuario;
 
                     int filasAfectadas = comando.ExecuteNonQuery();
 
                     if (filasAfectadas == 0)
                     {
-                        MessageBox.Show("No se encontró el usuario indicado.", "Aviso", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        MessageBox.Show("El usuario no existe o ya está inactivo.", "Aviso", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+
+                        return;
                     }
                 }
             }
@@ -202,9 +205,8 @@ namespace Modelo.Entidades
                         break;
 
                     default:
-                        MessageBox.Show("Error inesperado de SQL.", "ERR-SQL-999", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        MessageBox.Show("Error SQL (" + ex.Number + "): " + ex.Message, "ERR-SQL-999", MessageBoxButtons.OK, MessageBoxIcon.Error);
                         break;
-
                 }
             }
             catch (Exception ex)
