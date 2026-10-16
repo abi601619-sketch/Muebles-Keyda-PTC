@@ -238,67 +238,6 @@ namespace Modelo.Entidades
             }
         }
 
-        public static bool ActualizarPedidoEstado(int idPedido, string nuevoEstado)
-        {
-            using (SqlConnection conexion = Conexion.Conectar())
-            {
-                string query = "UPDATE Pedido SET Estado = @Estado WHERE IdPedido = @IdPedido AND (@Estado = 'Cancelado' OR EXISTS (SELECT 1 FROM DetallePedido WHERE IdPedido = @IdPedido));";
-
-                using (SqlCommand cmd = new SqlCommand(query, conexion))
-                {
-                    cmd.Parameters.AddWithValue("@Estado", nuevoEstado);
-                    cmd.Parameters.AddWithValue("@IdPedido", idPedido);
-
-                    try
-                    {
-                        int filasAfectadas = cmd.ExecuteNonQuery();
-
-                        if (filasAfectadas > 0)
-                        {
-                            return true;
-                        }
-
-                        MessageBox.Show("No se pudo actualizar el estado del pedido. Verifique que el pedido exista y tenga detalles.", "Pedido no actualizado", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                        return false;
-                    }
-                    catch (SqlException ex)
-                    {
-                        switch (ex.Number)
-                        {
-                            case 53:
-                                MessageBox.Show("No se pudo establecer conexión con el servidor.", "ERR-SQL-001", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                                break;
-
-                            case 4060:
-                                MessageBox.Show("No se pudo acceder a la base de datos.", "ERR-SQL-002", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                                break;
-
-                            case -2:
-                                MessageBox.Show("La actualización tardó demasiado tiempo.", "ERR-SQL-003", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                                break;
-
-                            case 208:
-                                MessageBox.Show("La tabla Pedido o DetallePedido no existe.", "ERR-SQL-004", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                                break;
-
-                            case 547:
-                                MessageBox.Show("No se puede actualizar el estado del pedido. Verifique los datos relacionados.", "ERR-SQL-007", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                                break;
-
-                            case 515:
-                                MessageBox.Show("El estado del pedido es obligatorio.", "ERR-SQL-008", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                                break;
-
-                            default:
-                                MessageBox.Show("Ocurrió un error al actualizar el estado.\n" + ex.Message, "ERR-SQL-999", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                                break;
-                        }
-
-                        return false;
-                    }
-                }
-            }
-        }
 
         public static bool ActualizarPedidoFecha(int idPedido, DateTime fechaEntrega)
         {

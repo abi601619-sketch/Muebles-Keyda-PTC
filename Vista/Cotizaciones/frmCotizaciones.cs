@@ -1467,6 +1467,34 @@ namespace Vista.Cotizaciones
             pnlBarraCambio.Visible = true;
             pnlBarraCambioRegistros.Visible = false;
         }
+
+        private void dgvCotizacionesRegistradas_CellDoubleClick(object sender, DataGridViewCellEventArgs e)
+        {
+            if (e.RowIndex < 0)
+                return;
+
+            try
+            {
+                int id = Convert.ToInt32(
+                    dgvCotizacionesRegistradas
+                        .Rows[e.RowIndex]
+                        .Cells["IdCotizacion"].Value);
+
+                using (frmProdctosCotizacion frm =
+                    new frmProdctosCotizacion(id))
+                {
+                    frm.ShowDialog();
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(
+                    "No se pudo abrir el detalle de la cotización: " + ex.Message,
+                    "Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+            }
+        }
     }
 }
 

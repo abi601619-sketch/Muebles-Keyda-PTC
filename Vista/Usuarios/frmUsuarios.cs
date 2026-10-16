@@ -249,39 +249,88 @@ namespace Vista.Usuarios
             {
                 if (dgvUsuariosRegistrados.CurrentRow == null)
                 {
-                    MessageBox.Show("Debe seleccionar un usuario.", "Advertencia", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    MessageBox.Show(
+                        "Debe seleccionar un usuario.",
+                        "Advertencia",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
                     return;
                 }
 
-                int idUsuario = Convert.ToInt32(dgvUsuariosRegistrados.CurrentRow.Cells["#"].Value);
-                string estado = dgvUsuariosRegistrados.CurrentRow.Cells["Estado"].Value?.ToString();
+                DataGridViewRow fila = dgvUsuariosRegistrados.CurrentRow;
 
-                if (estado == "Inactivo")
+                int idUsuario = Convert.ToInt32(fila.Cells["#"].Value);
+                string estado = fila.Cells["Estado"].Value?.ToString() ?? "";
+
+                DbUsuarios usuario = new DbUsuarios();
+
+                if (estado == "Activo")
                 {
-                    MessageBox.Show("El usuario seleccionado ya está inactivo.", "Información", MessageBoxButtons.OK, MessageBoxIcon.Information);
-                    return;
-                }
+                    DialogResult respuesta = MessageBox.Show(
+                        "¿Está seguro de desactivar este usuario?",
+                        "Confirmar desactivación",
+                        MessageBoxButtons.YesNo,
+                        MessageBoxIcon.Question);
 
-                DialogResult respuesta = MessageBox.Show("¿Está seguro de desactivar este usuario?", "Confirmar desactivación", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+                    if (respuesta != DialogResult.Yes)
+                        return;
 
-                if (respuesta == DialogResult.Yes)
-                {
-                    DbUsuarios usuario = new DbUsuarios();
                     usuario.DesactivarUsuario(idUsuario);
 
-                    MessageBox.Show("Usuario desactivado correctamente.", "Información", MessageBoxButtons.OK, MessageBoxIcon.Information);
-
-                    MostrarUsuarios();
-                    LimpiarFormulario();
+                    MessageBox.Show(
+                        "Usuario desactivado correctamente.",
+                        "Información",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information);
                 }
+                else if (estado == "Inactivo")
+                {
+                    DialogResult respuesta = MessageBox.Show(
+                        "¿Desea volver a activar este usuario?",
+                        "Confirmar activación",
+                        MessageBoxButtons.YesNo,
+                        MessageBoxIcon.Question);
+
+                    if (respuesta != DialogResult.Yes)
+                        return;
+
+                    // Este método debe existir en DbUsuarios.
+                    usuario.ActivarUsuario(idUsuario);
+
+                    MessageBox.Show(
+                        "Usuario activado correctamente.",
+                        "Información",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information);
+                }
+                else
+                {
+                    MessageBox.Show(
+                        "No se reconoce el estado del usuario.",
+                        "Advertencia",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
+                    return;
+                }
+
+                MostrarUsuarios();
+                LimpiarFormulario();
             }
             catch (FormatException)
             {
-                MessageBox.Show("Error 245: El identificador del usuario no es válido.", "Error 245", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show(
+                    "El identificador del usuario no es válido.",
+                    "Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Error inesperado al desactivar el usuario: " + ex.Message, "Error inesperado", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(
+                    "Ocurrió un error al cambiar el estado del usuario: " + ex.Message,
+                    "Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
             }
         }
 
@@ -403,48 +452,48 @@ namespace Vista.Usuarios
         // DOBLE CLIC EN UN USUARIO
         private void dgvUsuariosRegistrados_CellDoubleClick(object sender, DataGridViewCellEventArgs e)
         {
+
             try
             {
                 // Evitar seleccionar encabezados
                 if (e.RowIndex < 0)
-                {
                     return;
-                }
 
                 DataGridViewRow fila = dgvUsuariosRegistrados.Rows[e.RowIndex];
 
-                // CARGAR DATOS DEL USUARIO
+                // Obtener el estado antes de utilizarlo
+                string estado = fila.Cells["Estado"].Value?.ToString() ?? "";
 
-                txtUsuario.Text = fila.Cells["Nombre"].Value?.ToString();
-
-                txtUsuario.Text = fila.Cells["Usuario"].Value?.ToString();
-
-                txtCorreo.Text = fila.Cells["Correo"].Value?.ToString();
-
-                cmbRol.Text = fila.Cells["Rol"].Value?.ToString();
-
-                // CARGAR ESTADO
-
-                string estado = fila.Cells["Estado"].Value?.ToString();
-
+                // Cambiar el texto del botón según el estado
                 if (estado == "Activo")
                 {
-                    chkEstado.Checked = true;
+                    btnDesactivarUsuario.Text = "Desactivar";
                 }
                 else
                 {
-                    chkEstado.Checked = false;
+                    btnDesactivarUsuario.Text = "Activar";
                 }
 
-                // NO MOSTRAR LA CONTRASEÑA
+                // Cargar datos del usuario
+                txtUsuario.Text = fila.Cells["Usuario"].Value?.ToString() ?? "";
+                txtCorreo.Text = fila.Cells["Correo"].Value?.ToString() ?? "";
+                cmbRol.Text = fila.Cells["Rol"].Value?.ToString() ?? "";
 
+                // Cargar estado
+                chkEstado.Checked = estado == "Activo";
+
+                // No mostrar la contraseña
                 txtContrasena.Clear();
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Ocurrió un error al seleccionar el usuario:\n\n" + ex.Message, "Error",
-                    MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show(
+                    "Ocurrió un error al seleccionar el usuario:\n\n" + ex.Message,
+                    "Error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
             }
+
         }
 
         // BOTÓN NUEVO USUARIO

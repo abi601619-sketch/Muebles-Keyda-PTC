@@ -1,5 +1,6 @@
 using Modelo.Conexión_DB;
 using System;
+using System.Data;
 using System.Data.SqlClient;
 using System.Windows.Forms;
 
@@ -129,5 +130,68 @@ namespace Modelo.Entidades
                 return false;
             }
         }
+
+        public static DataTable CargarProductosCotizacion(int idCotizacion)
+        {
+            DataTable dt = new DataTable();
+
+            using (SqlConnection conexion = Conexion.Conectar())
+            {
+                string consulta = @"
+            SELECT
+                DescripcionMueble AS Mueble,
+                CONCAT(
+                    FORMAT(Largo, '0.##'), ' x ',
+                    FORMAT(Ancho, '0.##'), ' x ',
+                    FORMAT(Alto, '0.##'), ' cm'
+                ) AS Medidas,
+                Cantidad,
+                PrecioUnitario,
+                SubTotal
+            FROM dbo.Productos_Cotizacion
+            WHERE IdCotizacion = @IdCotizacion;";
+
+                using (SqlCommand cmd = new SqlCommand(consulta, conexion))
+                {
+                    cmd.Parameters.Add("@IdCotizacion", SqlDbType.Int).Value =
+                        idCotizacion;
+
+                    using (SqlDataAdapter adapter = new SqlDataAdapter(cmd))
+                    {
+                        adapter.Fill(dt);
+                    }
+                }
+            }
+
+            return dt;
+        }
+
+        public static DataTable CargarEncabezadoCotizacion(int idCotizacion)
+        {
+            using (SqlConnection conexion = Conexion.Conectar())
+            {
+                string consulta = @"
+            SELECT
+                IdCotizacion,
+                Fecha,
+                Estado,
+                Total
+            FROM Cotizacion
+            WHERE IdCotizacion = @IdCotizacion";
+
+                using (SqlCommand comando = new SqlCommand(consulta, conexion))
+                {
+                    comando.Parameters.AddWithValue("@IdCotizacion", idCotizacion);
+
+                    using (SqlDataAdapter adaptador = new SqlDataAdapter(comando))
+                    {
+                        DataTable dt = new DataTable();
+                        adaptador.Fill(dt);
+                        return dt;
+                    }
+                }
+            }
+        }
     }
 }
+
