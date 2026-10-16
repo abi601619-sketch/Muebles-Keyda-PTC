@@ -260,6 +260,36 @@ namespace Modelo.Entidades
             }
         }
 
+        public void ActivarUsuario(int idUsuario)
+        {
+            try
+            {
+                using (SqlConnection conexion = Conexion.Conectar())
+                {
+                    string consulta = @"
+                UPDATE Usuario
+                SET Estado = 1
+                WHERE IdUsuario = @IdUsuario";
+
+                    using (SqlCommand comando = new SqlCommand(consulta, conexion))
+                    {
+                        comando.Parameters.Add("@IdUsuario", SqlDbType.Int).Value = idUsuario;
+
+                        int filasAfectadas = comando.ExecuteNonQuery();
+
+                        if (filasAfectadas == 0)
+                        {
+                            throw new Exception("No se encontró el usuario seleccionado.");
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                throw new Exception("Error al activar el usuario: " + ex.Message, ex);
+            }
+        }
+
         public bool CrearAdministradorInicial(string nombre, string usuario, string contraseña, string correo)
         {
             try
