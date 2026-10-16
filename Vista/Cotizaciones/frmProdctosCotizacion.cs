@@ -274,32 +274,38 @@ namespace Vista.Cotizaciones
                 }
 
                 List<ProductoPDF> productos = new List<ProductoPDF>();
-
                 foreach (DataGridViewRow row in dgvProductosCotizacion.Rows)
                 {
                     if (row.IsNewRow)
                         continue;
 
-                    if (row.Cells["DescripcionMueble"].Value == null)
+                    if (row.Cells["Mueble"].Value == null)
                         continue;
 
-                    string descripcion =
-                        row.Cells["DescripcionMueble"].Value.ToString();
+                    string descripcion = row.Cells["Mueble"].Value.ToString();
 
                     if (string.IsNullOrWhiteSpace(descripcion))
                         continue;
 
+                    // La columna Medidas tiene un texto como "50 x 50 x 45 cm".
+                    string medidas = row.Cells["Medidas"].Value?.ToString() ?? "";
+
+                    string[] partes = medidas
+                        .Replace(" cm", "")
+                        .Split('x');
+
+                    if (partes.Length != 3)
+                        throw new Exception("Las medidas del producto no tienen el formato esperado.");
+
                     productos.Add(new ProductoPDF
                     {
                         Descripcion = descripcion,
-                        Largo = Convert.ToInt32(row.Cells["Largo"].Value),
-                        Ancho = Convert.ToInt32(row.Cells["Ancho"].Value),
-                        Alto = Convert.ToInt32(row.Cells["Alto"].Value),
+                        Largo = Convert.ToInt32(decimal.Parse(partes[0].Trim())),
+                        Ancho = Convert.ToInt32(decimal.Parse(partes[1].Trim())),
+                        Alto = Convert.ToInt32(decimal.Parse(partes[2].Trim())),
                         Cantidad = Convert.ToInt32(row.Cells["Cantidad"].Value),
-                        PrecioUnitario = Convert.ToDecimal(
-                            row.Cells["PrecioUnitario"].Value),
-                        SubTotal = Convert.ToDecimal(
-                            row.Cells["SubTotal"].Value)
+                        PrecioUnitario = Convert.ToDecimal(row.Cells["PrecioUnitario"].Value),
+                        SubTotal = Convert.ToDecimal(row.Cells["SubTotal"].Value)
                     });
                 }
 
