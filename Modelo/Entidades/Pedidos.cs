@@ -119,44 +119,148 @@ namespace Modelo.Entidades
             }
         }
 
+
         public static bool ConvertirCotizacionAPedido(int idCotizacion, DateTime fechaEntrega)
         {
+
             using (SqlConnection conexion = Conexion.Conectar())
             using (SqlTransaction transaccion = conexion.BeginTransaction())
             {
+
                 try
                 {
-                    string queryPedido = "INSERT INTO Pedido (FechaDePedido, FechaDeEntrega, Estado, IdCotizacion) VALUES (@FechaPedido, @FechaEntrega, 'En proceso', @IdCotizacion); SELECT SCOPE_IDENTITY();";
+
+                    // 0. Verificar que la cotización no se haya convertido anteriormente
+                    string queryValidar = @"
+        SELECT Estado
+        FROM dbo.Cotizacion WITH (UPDLOCK, HOLDLOCK)
+        WHERE IdCotizacion = @IdCotizacion;
+
+        IF @@ROWCOUNT = 0
+            THROW 50010, 'La cotización no existe.', 1;
+
+        IF EXISTS (
+            SELECT 1
+            FROM dbo.Pedido
+            WHERE IdCotizacion = @IdCotizacion
+        )
+            THROW 50011,
+                'Esta cotización ya fue convertida en pedido.',
+                1;
+    ";
+
+                    using (SqlCommand cmdValidar =
+                        new SqlCommand(queryValidar, conexion, transaccion))
+                    {
+                        cmdValidar.Parameters.Add(
+                            "@IdCotizacion", SqlDbType.Int).Value = idCotizacion;
+
+                        cmdValidar.ExecuteNonQuery();
+                    }
+
+                    // 1. Crear el pedido
+                    string queryPedido = @"
+                INSERT INTO dbo.Pedido
+                    (FechaDePedido, FechaDeEntrega, Estado, IdCotizacion)
+                VALUES
+                    (@FechaPedido, @FechaEntrega, 'En proceso', @IdCotizacion);
+
+                SELECT CAST(SCOPE_IDENTITY() AS INT);";
 
                     int nuevoIdPedido;
 
-                    using (SqlCommand cmdPedido = new SqlCommand(queryPedido, conexion, transaccion))
+                    using (SqlCommand cmdPedido =
+                        new SqlCommand(queryPedido, conexion, transaccion))
                     {
-                        cmdPedido.Parameters.AddWithValue("@FechaPedido", DateTime.Now);
-                        cmdPedido.Parameters.AddWithValue("@FechaEntrega", fechaEntrega);
-                        cmdPedido.Parameters.AddWithValue("@IdCotizacion", idCotizacion);
+                        cmdPedido.Parameters.Add(
+                            "@FechaPedido", SqlDbType.DateTime).Value =
+                            DateTime.Now;
+
+                        cmdPedido.Parameters.Add(
+                            "@FechaEntrega", SqlDbType.DateTime).Value =
+                            fechaEntrega;
+
+                        cmdPedido.Parameters.Add(
+                            "@IdCotizacion", SqlDbType.Int).Value =
+                            idCotizacion;
 
                         nuevoIdPedido = Convert.ToInt32(cmdPedido.ExecuteScalar());
                     }
 
-                    string queryDetalle = "INSERT INTO DetallePedido (IdPedido, Mueble, Cantidad, Medidas) SELECT @IdPedido, DescripcionMueble, Cantidad, CAST(Largo AS VARCHAR) + 'x' + CAST(Ancho AS VARCHAR) + 'x' + CAST(Alto AS VARCHAR) FROM Productos_Cotizacion WHERE IdCotizacion = @IdCotizacion;";
+                    // 2. Crear los detalles del pedido
+                    string queryDetalle = @"
+                INSERT INTO dbo.DetallePedido
+                    (IdPedido, Mueble, Cantidad, Medidas)
+                SELECT
+                    @IdPedido,
+                    DescripcionMueble,
+                    Cantidad,
+                    CAST(Largo AS VARCHAR(20)) + 'x' +
+                    CAST(Ancho AS VARCHAR(20)) + 'x' +
+                    CAST(Alto AS VARCHAR(20))
+                FROM dbo.Productos_Cotizacion
+                WHERE IdCotizacion = @IdCotizacion;";
 
-                    using (SqlCommand cmdDetalle = new SqlCommand(queryDetalle, conexion, transaccion))
+                    int detallesInsertados;
+
+                    using (SqlCommand cmdDetalle =
+                        new SqlCommand(queryDetalle, conexion, transaccion))
                     {
-                        cmdDetalle.Parameters.AddWithValue("@IdPedido", nuevoIdPedido);
-                        cmdDetalle.Parameters.AddWithValue("@IdCotizacion", idCotizacion);
-                        cmdDetalle.ExecuteNonQuery();
+                        cmdDetalle.Parameters.Add(
+                            "@IdPedido", SqlDbType.Int).Value =
+                            nuevoIdPedido;
+
+                        cmdDetalle.Parameters.Add(
+                            "@IdCotizacion", SqlDbType.Int).Value =
+                            idCotizacion;
+
+                        detallesInsertados = cmdDetalle.ExecuteNonQuery();
                     }
 
-                    string queryProduccion = "INSERT INTO Produccion (IdPedido, Progreso) VALUES (@IdPedido, 0);";
-
-                    using (SqlCommand cmdProduccion = new SqlCommand(queryProduccion, conexion, transaccion))
+                    // Verificar que se haya creado al menos un mueble
+                    if (detallesInsertados <= 0)
                     {
-                        cmdProduccion.Parameters.AddWithValue("@IdPedido", nuevoIdPedido);
-                        cmdProduccion.ExecuteNonQuery();
+                        throw new InvalidOperationException(
+                            "La cotización no contiene muebles para crear el pedido.");
                     }
 
+                    // 3. Crear una producción por cada detalle del pedido
+                    string queryProduccion = @"
+                INSERT INTO dbo.Produccion
+                    (IdPedido, IdDetallePedido, Progreso)
+                SELECT
+                    d.IdPedido,
+                    d.IdDetallePedido,
+                    0
+                FROM dbo.DetallePedido AS d
+                WHERE d.IdPedido = @IdPedido
+                  AND NOT EXISTS
+                  (
+                      SELECT 1
+                      FROM dbo.Produccion AS p
+                      WHERE p.IdDetallePedido = d.IdDetallePedido
+                  );";
+
+                    using (SqlCommand cmdProduccion =
+                        new SqlCommand(queryProduccion, conexion, transaccion))
+                    {
+                        cmdProduccion.Parameters.Add(
+                            "@IdPedido", SqlDbType.Int).Value =
+                            nuevoIdPedido;
+
+                        int produccionesInsertadas =
+                            cmdProduccion.ExecuteNonQuery();
+
+                        if (produccionesInsertadas != detallesInsertados)
+                        {
+                            throw new InvalidOperationException(
+                                "No se pudo crear una producción para cada mueble del pedido.");
+                        }
+                    }
+
+                    // 4. Confirmar todas las operaciones
                     transaccion.Commit();
+
                     return true;
                 }
                 catch (SqlException ex)
@@ -169,56 +273,68 @@ namespace Modelo.Entidades
                     {
                     }
 
+                    string mensaje;
+
                     switch (ex.Number)
                     {
                         case 53:
-                            MessageBox.Show("No se pudo establecer conexión con el servidor.", "ERR-SQL-001", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            mensaje = "No se pudo establecer conexión con el servidor.";
                             break;
 
                         case 4060:
-                            MessageBox.Show("No se pudo acceder a la base de datos.", "ERR-SQL-002", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            mensaje = "No se pudo acceder a la base de datos.";
                             break;
 
                         case -2:
-                            MessageBox.Show("La conversión tardó demasiado tiempo.", "ERR-SQL-003", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            mensaje = "La operación tardó demasiado tiempo.";
                             break;
 
                         case 208:
-                            MessageBox.Show("Una de las tablas utilizadas no existe en la base de datos.", "ERR-SQL-004", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            mensaje = "Una de las tablas utilizadas no existe.";
                             break;
 
                         case 2627:
-                            MessageBox.Show("El pedido o alguno de sus datos ya existe. Verifique la cotización.", "ERR-SQL-005", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                            break;
-
                         case 2601:
-                            MessageBox.Show("El pedido o alguno de sus datos ya existe. Verifique la cotización.", "ERR-SQL-006", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            mensaje = "El pedido o alguno de sus datos ya existe.";
                             break;
 
                         case 547:
-                            MessageBox.Show("No se puede convertir la cotización. Verifique los datos relacionados.", "ERR-SQL-007", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            mensaje = "No se puede convertir la cotización. Verifique los datos relacionados.";
                             break;
 
                         case 515:
-                            MessageBox.Show("Faltan datos obligatorios para crear el pedido.", "ERR-SQL-008", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            mensaje = "Faltan datos obligatorios para crear el pedido.";
                             break;
 
                         case 245:
-                            MessageBox.Show("Uno de los datos de la cotización tiene un formato incorrecto.", "ERR-SQL-009", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            mensaje = "Uno de los datos tiene un formato incorrecto.";
                             break;
 
                         case 8115:
-                            MessageBox.Show("Uno de los valores ingresados es demasiado grande.", "ERR-SQL-010", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            mensaje = "Uno de los valores ingresados es demasiado grande.";
                             break;
 
                         case 8152:
-                            MessageBox.Show("Uno de los datos es demasiado largo para la columna correspondiente.", "ERR-SQL-011", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            mensaje = "Uno de los datos es demasiado largo.";
+                            break;
+                        case 50010:
+                            mensaje = "La cotización no existe.";
+                            break;
+
+                        case 50011:
+                            mensaje = "Esta cotización ya fue convertida en pedido.";
                             break;
 
                         default:
-                            MessageBox.Show("Ocurrió un error al convertir la cotización.\n" + ex.Message, "ERR-SQL-999", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            mensaje = "Error SQL (" + ex.Number + "): " + ex.Message;
                             break;
                     }
+
+                    MessageBox.Show(
+                        mensaje,
+                        "Error al convertir cotización",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error);
 
                     return false;
                 }
@@ -232,11 +348,17 @@ namespace Modelo.Entidades
                     {
                     }
 
-                    MessageBox.Show("Ocurrió un error inesperado.\n" + ex.Message, "ERR-SQL-999", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show(
+                        "No se pudo convertir la cotización.\n" + ex.Message,
+                        "Error",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error);
+
                     return false;
                 }
             }
         }
+
 
 
         public static bool ActualizarPedidoFecha(int idPedido, DateTime fechaEntrega)

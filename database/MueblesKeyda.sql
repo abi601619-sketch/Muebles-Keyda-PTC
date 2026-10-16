@@ -203,11 +203,16 @@ CREATE TABLE Produccion
 (
     IdProduccion INT IDENTITY(1,1) PRIMARY KEY,
     IdPedido INT NOT NULL,
+    IdDetallePedido INT NULL,
     Progreso INT NOT NULL,
 
     CONSTRAINT FK_Produccion_Pedido
         FOREIGN KEY (IdPedido)
         REFERENCES Pedido(IdPedido),
+
+    CONSTRAINT FK_Produccion_DetallePedido
+        FOREIGN KEY (IdDetallePedido)
+        REFERENCES DetallePedido(IdDetallePedido),
 
     CONSTRAINT CK_Produccion_Progreso
         CHECK (Progreso BETWEEN 0 AND 100)
@@ -502,48 +507,49 @@ INNER JOIN TipoCliente tc
 
 --8.Vista para 
 
-    CREATE VIEW VerProduccion AS SELECT
+CREATE VIEW VerProduccion AS
+SELECT
     pro.IdProduccion,
     p.IdPedido,
+    dp.IdDetallePedido,
 
-    CASE 
+    CASE
         WHEN tc.TipoCliente = 'Persona Natural'
         THEN CONCAT(c.Identificador1, ' ', c.Identificador2)
         ELSE c.Identificador1
     END AS Cliente,
 
-    pc.DescripcionMueble AS Producto,
-    pc.Largo,
-    pc.Ancho,
-    pc.Alto,
-    pc.Cantidad,
+    dp.Mueble AS Producto,
+    dp.Medidas,
+    dp.Cantidad,
 
     p.FechaDePedido AS [Fecha de Inicio],
     p.FechaDeEntrega AS [Fecha de Entrega],
 
     pro.Progreso,
 
-    CASE 
+    CASE
         WHEN pro.Progreso = 0 THEN 'Pendiente'
         WHEN pro.Progreso BETWEEN 1 AND 99 THEN 'En producción'
         WHEN pro.Progreso = 100 THEN 'Finalizado'
     END AS Estado
 
-FROM Produccion pro
+FROM dbo.Produccion AS pro
 
-INNER JOIN Pedido p
+INNER JOIN dbo.Pedido AS p
     ON pro.IdPedido = p.IdPedido
 
-INNER JOIN Cotizacion co
+INNER JOIN dbo.DetallePedido AS dp
+    ON pro.IdDetallePedido = dp.IdDetallePedido
+    AND pro.IdPedido = dp.IdPedido
+
+INNER JOIN dbo.Cotizacion AS co
     ON p.IdCotizacion = co.IdCotizacion
 
-INNER JOIN Productos_Cotizacion pc
-    ON co.IdCotizacion = pc.IdCotizacion
-
-INNER JOIN Cliente c
+INNER JOIN dbo.Cliente AS c
     ON co.IdCliente = c.IdCliente
 
-INNER JOIN TipoCliente tc
+INNER JOIN dbo.TipoCliente AS tc
     ON c.IdTipoCliente = tc.IdTipoCliente;
 GO
 
@@ -1243,64 +1249,70 @@ BEGIN
         DECLARE @Estado VARCHAR(20);
         DECLARE @Cantidad INT;
         DECLARE @Cancelado BIT = 0;
+        DECLARE @IdProduccion INT;
 
+        -- Verificar pedido y bloquear modificaciones simultáneas
         SELECT @Estado = Estado
         FROM dbo.Pedido WITH (UPDLOCK, HOLDLOCK)
         WHERE IdPedido = @IdPedido;
 
         IF @Estado IS NULL
-        BEGIN
             THROW 50001, 'El pedido no existe.', 1;
-        END;
 
         IF @Estado IN ('Finalizado', 'Cancelado')
-        BEGIN
             THROW 50004,
                 'No se pueden modificar pedidos finalizados o cancelados.',
                 1;
-        END;
 
+        -- Verificar que el detalle pertenezca al pedido
         IF NOT EXISTS (
             SELECT 1
             FROM dbo.DetallePedido WITH (UPDLOCK, HOLDLOCK)
             WHERE IdPedido = @IdPedido
               AND IdDetallePedido = @IdDetallePedido
         )
-        BEGIN
             THROW 50003, 'El detalle no existe.', 1;
-        END;
 
+        -- Identificar la producción del mueble específico
+        SELECT @IdProduccion = IdProduccion
+        FROM dbo.Produccion WITH (UPDLOCK, HOLDLOCK)
+        WHERE IdDetallePedido = @IdDetallePedido
+          AND IdPedido = @IdPedido;
+
+        -- Contar los productos del pedido
         SELECT @Cantidad = COUNT(*)
         FROM dbo.DetallePedido WITH (UPDLOCK, HOLDLOCK)
         WHERE IdPedido = @IdPedido;
 
+        -- Si es el último producto, exigir confirmación
         IF @Cantidad = 1 AND @ConfirmarCancelacion = 0
-        BEGIN
             THROW 50002,
-                'Este es el ultimo producto. Confirme la cancelacion.',
+                'Este es el último producto. Confirme la cancelación.',
                 1;
+
+        -- Eliminar los materiales usados en esta producción
+        IF @IdProduccion IS NOT NULL
+        BEGIN
+            DELETE FROM dbo.MaterialUtilizado
+            WHERE IdProduccion = @IdProduccion;
+
+            -- Eliminar solo la producción del mueble seleccionado
+            DELETE FROM dbo.Produccion
+            WHERE IdProduccion = @IdProduccion;
         END;
 
+        -- Eliminar el detalle del mueble
         DELETE FROM dbo.DetallePedido
         WHERE IdPedido = @IdPedido
           AND IdDetallePedido = @IdDetallePedido;
 
+        -- Si ya no quedan productos, cancelar el pedido
         IF NOT EXISTS (
             SELECT 1
             FROM dbo.DetallePedido
             WHERE IdPedido = @IdPedido
         )
         BEGIN
-            DELETE FROM dbo.MaterialUtilizado
-            WHERE IdProduccion IN (
-                SELECT IdProduccion
-                FROM dbo.Produccion
-                WHERE IdPedido = @IdPedido
-            );
-
-            DELETE FROM dbo.Produccion
-            WHERE IdPedido = @IdPedido;
-
             UPDATE dbo.Pedido
             SET Estado = 'Cancelado'
             WHERE IdPedido = @IdPedido;
@@ -1513,6 +1525,30 @@ BEGIN
         ON d.IdUsuario = i.IdUsuario
     WHERE d.Estado = 1
       AND i.Estado = 0
+      AND co.Estado IN ('Pendiente', 'Aprobada');
+END;
+GO
+
+----------------TRIGGER PARA FINALIZAR LAS COTIZACIONES DE UN CLIENTE QUE SE DESACTIVA------------
+-- Al desactivar un cliente (Cliente.Estado de 'Activo' a 'Inactivo'), sus cotizaciones
+-- Pendientes y Aprobadas pasan a 'Finalizada'.
+
+CREATE OR ALTER TRIGGER dbo.TR_Cliente_Desactivado_FinalizarCotizaciones
+ON dbo.Cliente
+AFTER UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    UPDATE co
+    SET co.Estado = 'Finalizada'
+    FROM dbo.Cotizacion AS co
+    INNER JOIN inserted AS i
+        ON co.IdCliente = i.IdCliente
+    INNER JOIN deleted AS d
+        ON d.IdCliente = i.IdCliente
+    WHERE d.Estado = 'Activo'
+      AND i.Estado = 'Inactivo'
       AND co.Estado IN ('Pendiente', 'Aprobada');
 END;
 GO
