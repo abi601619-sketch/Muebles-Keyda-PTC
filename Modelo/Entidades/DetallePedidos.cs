@@ -120,25 +120,58 @@ namespace Modelo.Entidades
             try
             {
                 using (SqlConnection conexion = Conexion.Conectar())
-                using (SqlCommand cmd = new SqlCommand(
-                    "dbo.sp_EliminarDetallePedido", conexion))
                 {
-                    cmd.CommandType = CommandType.StoredProcedure;
+                    using (SqlCommand cmd = new SqlCommand(
+                        "dbo.sp_EliminarDetallePedido", conexion))
+                    {
+                        cmd.CommandType = CommandType.StoredProcedure;
 
-                    cmd.Parameters.Add("@IdPedido", SqlDbType.Int).Value =
-                        idPedido;
+                        cmd.Parameters.Add("@IdPedido", SqlDbType.Int).Value =
+                            idPedido;
 
-                    cmd.Parameters.Add("@IdDetallePedido", SqlDbType.Int).Value =
-                        idDetalle;
+                        cmd.Parameters.Add("@IdDetallePedido", SqlDbType.Int).Value =
+                            idDetalle;
 
-                    cmd.Parameters.Add("@ConfirmarCancelacion", SqlDbType.Bit).Value =
-                        confirmarCancelacion;
+                        cmd.Parameters.Add("@ConfirmarCancelacion", SqlDbType.Bit).Value =
+                            confirmarCancelacion;
 
-                    object resultado = cmd.ExecuteScalar();
+                        object resultado = cmd.ExecuteScalar();
 
-                    return resultado != null &&
-                           resultado != DBNull.Value &&
-                           Convert.ToBoolean(resultado);
+                        // El procedimiento debe devolver un resultado:
+                        // 1 = pedido cancelado
+                        // 0 = producto eliminado, pedido conservado
+                        if (resultado == null || resultado == DBNull.Value)
+                        {
+                            MessageBox.Show(
+                                "No se recibió confirmación de la operación.",
+                                "Aviso",
+                                MessageBoxButtons.OK,
+                                MessageBoxIcon.Warning);
+
+                            return false;
+                        }
+
+                        bool pedidoCancelado = Convert.ToBoolean(resultado);
+
+                        if (pedidoCancelado)
+                        {
+                            MessageBox.Show(
+                                "El último producto fue eliminado y el pedido se canceló correctamente.",
+                                "Operación exitosa",
+                                MessageBoxButtons.OK,
+                                MessageBoxIcon.Information);
+                        }
+                        else
+                        {
+                            MessageBox.Show(
+                                "El producto se eliminó correctamente del pedido.",
+                                "Operación exitosa",
+                                MessageBoxButtons.OK,
+                                MessageBoxIcon.Information);
+                        }
+
+                        return true;
+                    }
                 }
             }
             catch (SqlException ex)
@@ -152,7 +185,8 @@ namespace Modelo.Entidades
                         break;
 
                     case 50002:
-                        mensaje = "Este es el último producto. Confirme la cancelación.";
+                        mensaje =
+                            "Este es el último producto. Confirme la cancelación.";
                         break;
 
                     case 50003:
@@ -160,7 +194,8 @@ namespace Modelo.Entidades
                         break;
 
                     case 50004:
-                        mensaje = "No se pueden modificar pedidos finalizados o cancelados.";
+                        mensaje =
+                            "No se pueden modificar pedidos finalizados o cancelados.";
                         break;
 
                     case 53:
@@ -176,15 +211,18 @@ namespace Modelo.Entidades
                         break;
 
                     case 208:
-                        mensaje = "No se encontró una tabla o un procedimiento almacenado.";
+                        mensaje =
+                            "No se encontró una tabla o un procedimiento almacenado.";
                         break;
 
                     case 547:
-                        mensaje = "No se puede completar la operación por una relación entre registros.";
+                        mensaje =
+                            "No se puede completar la operación por una relación entre registros.";
                         break;
 
                     default:
-                        mensaje = "Error SQL (" + ex.Number + "): " + ex.Message;
+                        mensaje =
+                            "Error SQL (" + ex.Number + "): " + ex.Message;
                         break;
                 }
 

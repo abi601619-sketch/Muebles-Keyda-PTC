@@ -169,126 +169,155 @@ namespace Modelo.Entidades
         }
 
 
-
         public bool ActualizarProduccion()
         {
-            string comandoSQL = @"
-        UPDATE Produccion
-        SET Progreso = @Progreso
-        WHERE IdProduccion = @IdProduccion;
+            if (Progreso1 < 0 || Progreso1 > 100)
+            {
+                MessageBox.Show("El progreso debe estar entre 0 y 100.", "Progreso inválido", MessageBoxButtons.OK, MessageBoxIcon.Warning);
 
-        IF @Progreso = 100
-        BEGIN
-            UPDATE Pedido
-            SET Estado = 'Finalizado'
-            WHERE IdPedido = (
-                SELECT IdPedido
-                FROM Produccion
-                WHERE IdProduccion = @IdProduccion
-            );
-        END";
+                return false;
+            }
+
+            string consulta = @"
+        SET XACT_ABORT ON;
+
+        BEGIN TRY
+            BEGIN TRANSACTION;
+
+            DECLARE @IdPedido INT;
+            DECLARE @ProgresoActual INT;
+
+            -- Consultar y bloquear la producción seleccionada
+            SELECT
+                @IdPedido = IdPedido,
+                @ProgresoActual = Progreso
+            FROM dbo.Produccion WITH (UPDLOCK, HOLDLOCK)
+            WHERE IdProduccion = @IdProduccion;
+
+            IF @IdPedido IS NULL
+                THROW 50001, 'No se encontró la producción.', 1;
+
+            -- No permitir modificar una producción finalizada
+            IF @ProgresoActual = 100
+                THROW 50003,
+                    'Esta producción ya está finalizada al 100 % y no se puede modificar.',
+                    1;
+
+            -- Actualizar solamente la producción seleccionada
+            UPDATE dbo.Produccion
+            SET Progreso = @Progreso
+            WHERE IdProduccion = @IdProduccion;
+
+            -- Finalizar el pedido solo si todos sus muebles
+            -- tienen una producción relacionada al 100 %
+            UPDATE dbo.Pedido
+            SET Estado =
+                CASE
+                    WHEN EXISTS (
+                        SELECT 1
+                        FROM dbo.DetallePedido AS d
+                        WHERE d.IdPedido = @IdPedido
+                    )
+                    AND NOT EXISTS (
+                        SELECT 1
+                        FROM dbo.DetallePedido AS d
+                        LEFT JOIN dbo.Produccion AS p
+                            ON p.IdDetallePedido = d.IdDetallePedido
+                            AND p.IdPedido = d.IdPedido
+                        WHERE d.IdPedido = @IdPedido
+                          AND (
+                              p.IdProduccion IS NULL
+                              OR p.Progreso < 100
+                          )
+                    )
+                    THEN 'Finalizado'
+                    ELSE 'En proceso'
+                END
+            WHERE IdPedido = @IdPedido
+              AND Estado <> 'Cancelado';
+
+            COMMIT TRANSACTION;
+        END TRY
+        BEGIN CATCH
+            IF XACT_STATE() <> 0
+                ROLLBACK TRANSACTION;
+
+            THROW;
+        END CATCH;
+    ";
 
             using (SqlConnection conexion = Conexion.Conectar())
             {
-                SqlTransaction transaccion = null;
-
                 try
                 {
-                    transaccion = conexion.BeginTransaction();
-
-                    using (SqlCommand comando = new SqlCommand(comandoSQL, conexion, transaccion))
+                    using (SqlCommand comando =
+                        new SqlCommand(consulta, conexion))
                     {
-                        comando.Parameters.Add("@IdProduccion", SqlDbType.Int).Value = IdProduccion;
-                        comando.Parameters.Add("@Progreso", SqlDbType.Int).Value = Progreso;
+                        comando.Parameters.Add(
+                            "@IdProduccion", SqlDbType.Int).Value =
+                            IdProduccion1;
 
-                        int filasAfectadas = comando.ExecuteNonQuery();
+                        comando.Parameters.Add(
+                            "@Progreso", SqlDbType.Int).Value =
+                            Progreso1;
 
-                        if (filasAfectadas == 0)
-                        {
-                            transaccion.Rollback();
-                            MessageBox.Show("No se encontró la producción que desea actualizar.", "Producción no encontrada", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                            return false;
-                        }
-
-                        transaccion.Commit();
-
-                        MessageBox.Show("La producción se actualizó correctamente.\nID Producción: " + IdProduccion + " | Progreso: " + Progreso + "%", "Producción actualizada", MessageBoxButtons.OK, MessageBoxIcon.Information);
-
-                        return true;
+                        comando.ExecuteNonQuery();
                     }
+
+                    Estado1 = Progreso1 == 100
+                        ? "Finalizado"
+                        : Progreso1 == 0
+                            ? "Pendiente"
+                            : "En producción";
+
+                    MessageBox.Show("El progreso del mueble se actualizó correctamente.", "Actualización exitosa", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                    return true;
                 }
                 catch (SqlException ex)
                 {
-                    if (transaccion != null)
-                    {
-                        try
-                        {
-                            transaccion.Rollback();
-                        }
-                        catch
-                        {
-                        }
-                    }
+                    string mensaje;
 
                     switch (ex.Number)
                     {
-                        case 547:
-                            MessageBox.Show("No se puede actualizar la producción. Verifique el pedido relacionado.", "Error 547", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        case 50001:
+                            mensaje = "No se encontró la producción.";
                             break;
 
-                        case 515:
-                            MessageBox.Show("El progreso de la producción es obligatorio.", "Error 515", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                            break;
-
-                        case 245:
-                            MessageBox.Show("El valor del progreso tiene un formato incorrecto.", "Error 245", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                            break;
-
-                        case 8115:
-                            MessageBox.Show("El valor ingresado para el progreso es demasiado grande.", "Error 8115", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                            break;
-
-                        case 53:
-                            MessageBox.Show("No se pudo establecer conexión con el servidor.", "Error 53", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                            break;
-
-                        case 4060:
-                            MessageBox.Show("No se pudo acceder a la base de datos.", "Error 4060", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                            break;
-
-                        case -2:
-                            MessageBox.Show("La actualización tardó demasiado tiempo.", "Error -2", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                            break;
-
-                        case 208:
-                            MessageBox.Show("La tabla Produccion o Pedido no existe.", "Error 208", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                        case 50003:
+                            mensaje = ex.Message;
                             break;
 
                         default:
-                            MessageBox.Show("Ocurrió un error al actualizar la producción.\n" + ex.Message, "Error " + ex.Number, MessageBoxButtons.OK, MessageBoxIcon.Error);
+                            mensaje =
+                                "No se pudo actualizar la producción.\n\n" +
+                                ex.Message;
                             break;
                     }
+
+                    MessageBox.Show(
+                        mensaje,
+                        "No se pudo actualizar",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Warning);
 
                     return false;
                 }
                 catch (Exception ex)
                 {
-                    if (transaccion != null)
-                    {
-                        try
-                        {
-                            transaccion.Rollback();
-                        }
-                        catch
-                        {
-                        }
-                    }
+                    MessageBox.Show(
+                        "Ocurrió un error al actualizar la producción.\n\n" +
+                        ex.Message,
+                        "Error de actualización",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Error);
 
-                    MessageBox.Show("Ocurrió un error inesperado.\n" + ex.Message, "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return false;
                 }
             }
         }
+
+
         public static int ContarProduccionesTotales()
         {
             try
