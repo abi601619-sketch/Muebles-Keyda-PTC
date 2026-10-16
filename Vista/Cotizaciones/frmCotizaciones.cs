@@ -1154,6 +1154,18 @@ namespace Vista.Cotizaciones
 
                 string estadoActual = dgvCotizacionesRegistradas.CurrentRow.Cells["Estado"].Value?.ToString();
 
+                if (estadoActual == "Cancelada")
+                {
+                    MessageBox.Show(
+                        "Esta cotización fue cancelada porque el usuario que la creó fue desactivado. Su estado ya no se puede cambiar.",
+                        "Cotización cancelada",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Information
+                    );
+
+                    return;
+                }
+
                 Vista.Overlay.Overlay overlay = new Vista.Overlay.Overlay();
 
                 overlay.StartPosition = FormStartPosition.Manual;

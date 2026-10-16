@@ -6,7 +6,7 @@
 ; El instalador queda en installer\Output\MueblesKeydaSetup.exe
 
 #define AppName "Muebles Keyda"
-#define AppVersion "1.0.5"
+#define AppVersion "1.0.6"
 #define AppPublisher "Muebles Keyda"
 #define AppExeName "Vista.exe"
 #define BuildDir "..\Vista\bin\Release"
