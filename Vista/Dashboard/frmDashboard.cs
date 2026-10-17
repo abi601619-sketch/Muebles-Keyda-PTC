@@ -24,6 +24,7 @@ namespace Vista.Dashboard
         public frmDashboard()
         {
             InitializeComponent();
+            Vista.Usuarios.frmCambiarContrasena.AgregarBotonAlMenu(pnlBotones, btnAyuda, this);
             ResponsiveHelper.Apply(this);
 
 

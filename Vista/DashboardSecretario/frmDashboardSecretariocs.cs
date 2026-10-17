@@ -18,6 +18,7 @@ namespace Vista.DashboardSecretario
         public frmDashboardSecretariocs()
         {
             InitializeComponent();
+            Vista.Usuarios.frmCambiarContrasena.AgregarBotonAlMenu(pnlBotones, btnAyuda, this);
             ResponsiveHelper.Apply(this);
             this.btnAgrupar.Click += new System.EventHandler(this.btnAgrupar_Click);
             AbrirFormulario(new frmInicio());
