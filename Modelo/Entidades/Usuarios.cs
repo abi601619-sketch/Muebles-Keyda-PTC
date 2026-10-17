@@ -290,6 +290,102 @@ namespace Modelo.Entidades
             }
         }
 
+        // ACTUALIZA EL USUARIO IdUsuario1 (NOMBRE DE USUARIO, CORREO Y ROL). SI nuevaContraseña TIENE TEXTO TAMBIEN CAMBIA LA CONTRASEÑA;
+        // SI VIENE VACIA SE CONSERVA LA ACTUAL. DEVUELVE null SI TODO SALIO BIEN; SI NO, EL MENSAJE QUE SE LE DEBE MOSTRAR AL USUARIO.
+        public string ActualizarUsuario(string nuevaContraseña)
+        {
+            try
+            {
+                using (SqlConnection conexion = Conexion.Conectar())
+                {
+                    string rolActual;
+
+                    using (SqlCommand consulta = new SqlCommand("SELECT Rol FROM Usuario WHERE IdUsuario = @IdUsuario;", conexion))
+                    {
+                        consulta.Parameters.Add("@IdUsuario", SqlDbType.Int).Value = IdUsuario;
+
+                        object resultado = consulta.ExecuteScalar();
+
+                        if (resultado == null || resultado == DBNull.Value)
+                            return "No se encontró el usuario seleccionado.";
+
+                        rolActual = resultado.ToString();
+                    }
+
+                    // EL SISTEMA NO PUEDE QUEDAR SIN ADMINISTRADORES: UN ADMINISTRADOR SOLO PUEDE DEJAR DE SERLO SI HAY OTRO ACTIVO
+                    if (rolActual == "Administrador" && Rol != "Administrador")
+                    {
+                        string consultaAdmins = "SELECT COUNT(*) FROM Usuario WHERE Rol = 'Administrador' AND Estado = 1 AND IdUsuario <> @IdUsuario;";
+
+                        using (SqlCommand otros = new SqlCommand(consultaAdmins, conexion))
+                        {
+                            otros.Parameters.Add("@IdUsuario", SqlDbType.Int).Value = IdUsuario;
+
+                            if (Convert.ToInt32(otros.ExecuteScalar()) == 0)
+                                return "No se puede cambiar el rol: debe existir al menos otro administrador activo.";
+                        }
+                    }
+
+                    bool cambiarContraseña = !string.IsNullOrWhiteSpace(nuevaContraseña);
+
+                    // EL NOMBRE ACOMPAÑA AL NOMBRE DE USUARIO SOLO CUANDO ERAN IGUALES (ASI SE REGISTRAN DESDE EL FORMULARIO)
+                    string comandoSQL = @"UPDATE Usuario
+                        SET Nombre = CASE WHEN Nombre = Usuario THEN @Usuario ELSE Nombre END,
+                            Usuario = @Usuario,
+                            Correo = @Correo,
+                            Rol = @Rol" + (cambiarContraseña ? ",\n                            Contraseña = @Contraseña" : "") + @"
+                        WHERE IdUsuario = @IdUsuario;";
+
+                    using (SqlCommand comando = new SqlCommand(comandoSQL, conexion))
+                    {
+                        comando.Parameters.Add("@IdUsuario", SqlDbType.Int).Value = IdUsuario;
+                        comando.Parameters.Add("@Usuario", SqlDbType.VarChar, 50).Value = Usuario;
+                        comando.Parameters.Add("@Correo", SqlDbType.VarChar, 150).Value = Correo;
+                        comando.Parameters.Add("@Rol", SqlDbType.VarChar, 20).Value = Rol;
+
+                        if (cambiarContraseña)
+                            comando.Parameters.Add("@Contraseña", SqlDbType.VarChar, 255).Value = BCrypt.Net.BCrypt.HashPassword(nuevaContraseña);
+
+                        return comando.ExecuteNonQuery() == 0 ? "No se encontró el usuario seleccionado." : null;
+                    }
+                }
+            }
+            catch (SqlException ex)
+            {
+                switch (ex.Number)
+                {
+                    case 2627:
+                    case 2601:
+                        return "El nombre de usuario ya está registrado.";
+
+                    case 547:
+                        return "El rol seleccionado no es válido.";
+
+                    case 8152:
+                        return "Alguno de los datos es demasiado largo.";
+
+                    case 53:
+                        return "No se puede conectar al servidor SQL.";
+
+                    case 4060:
+                        return "No se puede acceder a la base de datos.";
+
+                    case -2:
+                        return "Tiempo de espera agotado.";
+
+                    case 208:
+                        return "Tabla, vista o procedimiento no encontrado.";
+
+                    default:
+                        return "Error inesperado de SQL (" + ex.Number + "): " + ex.Message;
+                }
+            }
+            catch (Exception ex)
+            {
+                return "Error inesperado: " + ex.Message;
+            }
+        }
+
         public bool CrearAdministradorInicial(string nombre, string usuario, string contraseña, string correo)
         {
             try

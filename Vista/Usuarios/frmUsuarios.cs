@@ -25,6 +25,11 @@ namespace Vista.Usuarios
         private int registrosPorPagina = 20;
         private int totalPaginas = 0;
 
+        // ID DEL USUARIO QUE SE ESTA EDITANDO (0 = SE REGISTRA UNO NUEVO)
+        private int idUsuarioSeleccionado = 0;
+        private const string TextoGuardar = "Guardar";
+        private const string TextoActualizar = "Actualizar";
+
         private Guna.UI2.WinForms.Guna2Elipse elipseContenedor;
         private Guna.UI2.WinForms.Guna2Elipse elipsePedidoDatos;
         private Guna.UI2.WinForms.Guna2Elipse elipsePedidosRegistrados;
@@ -70,13 +75,13 @@ namespace Vista.Usuarios
 
             toolTip1.SetToolTip(txtUsuario, "Ingrese el nombre de usuario.");
             toolTip1.SetToolTip(txtCorreo, "Ingrese el correo electrónico del usuario.");
-            toolTip1.SetToolTip(txtContrasena, "Ingrese la contraseña del usuario.");
+            toolTip1.SetToolTip(txtContrasena, "Ingrese la contraseña del usuario. Al editar un usuario, déjela vacía para conservar la actual o escriba una nueva para cambiarla.");
             toolTip1.SetToolTip(cmbRol, "Seleccione el rol que tendrá el usuario.");
             toolTip1.SetToolTip(chkEstado, "Indica si el usuario se encuentra activo.");
             toolTip1.SetToolTip(btnNuevoUsuario, "Limpia el formulario para registrar un nuevo usuario.");
-            toolTip1.SetToolTip(btnGuardarUsuario, "Guarda el nuevo usuario en el sistema.");
+            toolTip1.SetToolTip(btnGuardarUsuario, "Guarda el nuevo usuario. Si seleccionaste uno con doble clic, guarda los cambios de ese usuario.");
             toolTip1.SetToolTip(btnDesactivarUsuario, "Desactiva el usuario seleccionado.");
-            toolTip1.SetToolTip(dgvUsuariosRegistrados, "Muestra los usuarios registrados. Haz doble clic para consultar sus datos.");
+            toolTip1.SetToolTip(dgvUsuariosRegistrados, "Muestra los usuarios registrados. Haz doble clic en un usuario para editarlo o cambiar su contraseña.");
         }
 
         private void ConfigurarTablaUsuarios()
@@ -229,12 +234,94 @@ namespace Vista.Usuarios
             }
         }
 
+        // ACTUALIZAR EL USUARIO SELECCIONADO (NOMBRE DE USUARIO, CORREO, ROL Y, SI SE ESCRIBE, LA CONTRASEÑA)
+        private void ActualizarUsuarioSeleccionado()
+        {
+            try
+            {
+                string usuarioNombre = txtUsuario.Text.Trim();
+                string correo = txtCorreo.Text.Trim();
+                string nuevaContraseña = txtContrasena.Text;
+
+                if (string.IsNullOrWhiteSpace(usuarioNombre))
+                {
+                    errorProvider1.SetError(txtUsuario, "Debe ingresar un nombre de usuario.");
+                    txtUsuario.Focus();
+                    return;
+                }
+
+                if (string.IsNullOrWhiteSpace(correo))
+                {
+                    errorProvider1.SetError(txtCorreo, "Debe ingresar un correo electrónico.");
+                    txtCorreo.Focus();
+                    return;
+                }
+
+                if (!correo.Contains("@") || !correo.Contains("."))
+                {
+                    errorProvider1.SetError(txtCorreo, "Ingrese un correo electrónico válido.");
+                    txtCorreo.Focus();
+                    return;
+                }
+
+                string rol = cmbRol.Text.Trim();
+
+                if (cmbRol.SelectedIndex == -1 || (rol != "Administrador" && rol != "Secretario"))
+                {
+                    errorProvider1.SetError(cmbRol, "Se debe seleccionar un rol válido.");
+                    cmbRol.Focus();
+                    return;
+                }
+
+                // LA CONTRASEÑA ES OPCIONAL: VACIA = SE CONSERVA LA ACTUAL
+                bool cambiaContraseña = !string.IsNullOrWhiteSpace(nuevaContraseña);
+
+                string aviso = "¿Desea guardar los cambios del usuario \"" + usuarioNombre + "\"?";
+
+                if (cambiaContraseña)
+                    aviso += "\n\nTambién se cambiará su contraseña.";
+
+                if (MessageBox.Show(aviso, "Confirmar cambios", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes)
+                    return;
+
+                DbUsuarios usuario = new DbUsuarios
+                {
+                    IdUsuario1 = idUsuarioSeleccionado,
+                    Usuario1 = usuarioNombre,
+                    Correo1 = correo,
+                    Rol1 = rol
+                };
+
+                string error = usuario.ActualizarUsuario(nuevaContraseña);
+
+                if (error != null)
+                {
+                    MessageBox.Show(error, "No se pudo actualizar el usuario", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+
+                MessageBox.Show(
+                    cambiaContraseña ? "Usuario actualizado y contraseña cambiada correctamente." : "Usuario actualizado correctamente.",
+                    "Información", MessageBoxButtons.OK, MessageBoxIcon.Information);
+
+                LimpiarFormulario();
+                MostrarUsuarios();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Error inesperado al actualizar el usuario: " + ex.Message, "Error inesperado", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
         // BOTÓN GUARDAR
         private void btnGuardarUsuario_Click_1(object sender, EventArgs e)
         {
             try
             {
-                RegistrarUsuario();
+                if (idUsuarioSeleccionado > 0)
+                    ActualizarUsuarioSeleccionado();
+                else
+                    RegistrarUsuario();
             }
             catch (Exception ex)
             {
@@ -464,6 +551,10 @@ namespace Vista.Usuarios
                 // Obtener el estado antes de utilizarlo
                 string estado = fila.Cells["Estado"].Value?.ToString() ?? "";
 
+                // El usuario queda seleccionado para editarlo
+                idUsuarioSeleccionado = Convert.ToInt32(fila.Cells["#"].Value);
+                btnGuardarUsuario.Text = TextoActualizar;
+
                 // Cambiar el texto del botón según el estado
                 if (estado == "Activo")
                 {
@@ -507,6 +598,9 @@ namespace Vista.Usuarios
         // LIMPIAR FORMULARIO
         private void LimpiarFormulario()
         {
+            idUsuarioSeleccionado = 0;
+            btnGuardarUsuario.Text = TextoGuardar;
+
             txtUsuario.Clear();
 
             txtCorreo.Clear();
