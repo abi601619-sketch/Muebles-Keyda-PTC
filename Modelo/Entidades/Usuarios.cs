@@ -386,6 +386,73 @@ namespace Modelo.Entidades
             }
         }
 
+        // MINIMO DE CARACTERES PARA LA CONTRASEÑA QUE UN USUARIO ESCOGE PARA SI MISMO
+        public const int LongitudMinimaContraseña = 6;
+
+        // CAMBIA LA CONTRASEÑA DEL PROPIO USUARIO (idUsuario) VERIFICANDO ANTES SU CONTRASEÑA ACTUAL (BCRYPT).
+        // DEVUELVE null SI SE CAMBIO; SI NO, EL MENSAJE QUE SE LE DEBE MOSTRAR AL USUARIO.
+        public static string CambiarContraseñaPropia(int idUsuario, string contraseñaActual, string nuevaContraseña)
+        {
+            if (string.IsNullOrEmpty(contraseñaActual))
+                return "Ingrese su contraseña actual.";
+
+            if (string.IsNullOrWhiteSpace(nuevaContraseña))
+                return "Ingrese la nueva contraseña.";
+
+            if (nuevaContraseña.Length < LongitudMinimaContraseña)
+                return "La nueva contraseña debe tener al menos " + LongitudMinimaContraseña + " caracteres.";
+
+            if (nuevaContraseña == contraseñaActual)
+                return "La nueva contraseña debe ser distinta de la actual.";
+
+            try
+            {
+                using (SqlConnection conexion = Conexion.Conectar())
+                {
+                    string hashActual;
+                    bool activo;
+
+                    using (SqlCommand consulta = new SqlCommand("SELECT Contraseña, Estado FROM Usuario WHERE IdUsuario = @IdUsuario;", conexion))
+                    {
+                        consulta.Parameters.Add("@IdUsuario", SqlDbType.Int).Value = idUsuario;
+
+                        using (SqlDataReader lector = consulta.ExecuteReader())
+                        {
+                            if (!lector.Read())
+                                return "No se encontró el usuario.";
+
+                            hashActual = lector["Contraseña"].ToString();
+                            activo = Convert.ToBoolean(lector["Estado"]);
+                        }
+                    }
+
+                    if (!activo)
+                        return "Este usuario se encuentra desactivado.";
+
+                    if (!BCrypt.Net.BCrypt.Verify(contraseñaActual, hashActual))
+                        return "La contraseña actual es incorrecta.";
+
+                    using (SqlCommand actualizar = new SqlCommand("UPDATE Usuario SET Contraseña = @Contraseña WHERE IdUsuario = @IdUsuario;", conexion))
+                    {
+                        actualizar.Parameters.Add("@IdUsuario", SqlDbType.Int).Value = idUsuario;
+                        actualizar.Parameters.Add("@Contraseña", SqlDbType.VarChar, 255).Value = BCrypt.Net.BCrypt.HashPassword(nuevaContraseña);
+
+                        actualizar.ExecuteNonQuery();
+                    }
+
+                    return null;
+                }
+            }
+            catch (SqlException ex)
+            {
+                return "Error de base de datos (" + ex.Number + "): " + ex.Message;
+            }
+            catch (Exception ex)
+            {
+                return "Error inesperado: " + ex.Message;
+            }
+        }
+
         public bool CrearAdministradorInicial(string nombre, string usuario, string contraseña, string correo)
         {
             try

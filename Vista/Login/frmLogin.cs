@@ -151,6 +151,9 @@ namespace Vista.Login
 
                             DbUsuarios usuarios = new DbUsuarios(idUsuario, nombre, usuarioBD, hashGuardado, rol, estado);
 
+                            // Recordar quien inicio sesion (lo usa "Mi contraseña")
+                            SesionActual.Iniciar(idUsuario, nombre, usuarioBD, rol);
+
                             // Abrir Dashboard según el rol y cerrar el Login
                             if (rol == "Administrador")
                             {
@@ -212,6 +215,9 @@ namespace Vista.Login
 
         private void frmLogin_Load(object sender, EventArgs e)
         {
+            // Al volver al login (cerrar sesion) no debe quedar nadie con la sesion abierta
+            SesionActual.Cerrar();
+
             CargarLogoEmpresa();
         }
 
